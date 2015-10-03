@@ -25,13 +25,22 @@ class Torrent(object):
         # TODO: need to respect encoding value?
         # TODO: need to handle byte order?
         pieces = self.info.pieces
-        assert(len(pieces) % 20 == 0)
         chunks = [pieces[i:i+SHA_LEN] for i in xrange(0, len(pieces), SHA_LEN)]
         self.info.pieces = chunks
 
     def _validate_dict(self, torrent_dict):
+
+        def LengthAligned(boundary=None, msg=None):
+            """The length must be aligned to a multiple of boundary."""
+            def f(v):
+                if boundary and boundary > 0 and len(v) % boundary != 0:
+                    raise voluptuous.LengthInvalid(
+                        'length of value must be a multiple of %s' % boundary)
+                return v
+            return f
+
         schema = voluptuous.Schema({
-            'announce': str,
+            'announce': voluptuous.Url(),
             'encoding': str,
             voluptuous.Optional('created by'): str,
             voluptuous.Optional('creation date'): int,
@@ -39,7 +48,7 @@ class Torrent(object):
                 'length': int,
                 'name': str,
                 'piece length': int,
-                'pieces': str
+                'pieces': voluptuous.All(str, LengthAligned(SHA_LEN))
             }
         }, required=True)
 
