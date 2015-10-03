@@ -1,11 +1,15 @@
 import copy
-import bencode
+import struct
+import hashlib
 from pprint import pprint, pformat
 
+import bencode
 import voluptuous
+import requests
 
 
 SHA_LEN = 20
+assert(hashlib.sha1().digest_size == SHA_LEN)
 
 
 class Torrent(object):
@@ -16,10 +20,12 @@ class Torrent(object):
             benstr (str): bencoded str with torrent file contents
         """
         d = bencode.bdecode(benstr)
+        info_hash = hashlib.sha1(bencode.bencode(d['info'])).digest()
         d = self._validate_dict(d)
         d = dict_keys_to_underscores(d)
         self.__dict__.update(d)
         self.info = dotdict(self.info)
+        self.info_hash = info_hash
 
         # Separate SHA-1 hashes of pieces.
         # TODO: need to respect encoding value?
@@ -50,6 +56,7 @@ class Torrent(object):
                 'piece length': int,
                 'pieces': voluptuous.All(str, LengthAligned(SHA_LEN))
             }
+        # TODO: more permissive validation?
         }, required=True)
 
         return schema(torrent_dict)
@@ -63,13 +70,34 @@ class Torrent(object):
 
 def main():
     torrent = open_torrent('../shared/flagfromserver.torrent')
-    print torrent
+    resp = requests.get(torrent.announce, {
+        'info_hash': torrent.info_hash,
+        'peer_id': 'QQ-0000-' + '0' * 12,
+        'left': torrent.info.length
+    })
+    d = bencode.bdecode(resp.text)
+    if not isinstance(d['peers'], dict):
+        d['peers'] = binary_peers_to_dict(d['peers'].encode('latin-1'))
+
+    print d
 
 
 def open_torrent(filename):
     with open(filename) as f:
         t = Torrent(f.read())
     return t
+
+
+def binary_peers_to_dict(peers_bytes):
+    fmt = '!BBBBH'
+    fmt_size = struct.calcsize(fmt)
+    assert(len(peers_bytes) % fmt_size == 0)
+    peers = [struct.unpack_from(fmt, peers_bytes, offset=ofs)
+             for ofs in xrange(0, len(peers_bytes), fmt_size)]
+    return [{
+        'ip': '%d.%d.%d.%d' % p[:4],
+        'port': '%d' % p[4]
+    } for p in peers]
 
 
 class dotdict(dict):
