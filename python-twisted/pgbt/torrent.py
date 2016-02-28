@@ -19,16 +19,28 @@ class TorrentFile():
 
         # TODO: validate shape using voluptuous or schema
 
-        # check encoding
+        # 'encoding' field defines character encoding for 'pieces' field.
+        encoding = content.get(b'encoding').decode('utf-8')
+        if encoding and encoding.lower() != 'utf-8':
+            raise(TorrentDecodeError('Unsupported encoding: %s' % encoding))
 
-        # get announce url
+        self.announce = content[b'announce'].decode('utf-8')
+        try:
+            vol.Url()(self.announce)
+        except vol.UrlInvalid as e:
+            msg = 'Invalid announce URL: %s' % self.announce
+            raise TorrentDecodeError(msg) from e
 
-        # Ignore: 'creation date', 'comment', 'created by', 'announce-list'
+        # Ignore 'creation date', 'comment', 'created by', 'announce-list'
 
         info_dict = content[b'info']
         self.info_hash = hashlib.sha1(bencodepy.encode(info_dict)).digest()
+        self.info_dict = self.decode_info_dict(info_dict)
 
-    def decode_info_dict(info):
+    def decode_info_dict(self, d):
+        info = {}
+
+        print(info)
         # pieces_length
         # pieces
 
