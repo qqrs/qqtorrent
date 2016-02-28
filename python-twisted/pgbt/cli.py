@@ -1,8 +1,9 @@
+from client import PgbtClient
 
 
 def main():
-    print('hello')
-
+    client = PgbtClient()
+    client.add_torrent('../shared/flagfromserver.torrent')
 
 if __name__ == '__main__':
     main()
