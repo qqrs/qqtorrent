@@ -14,6 +14,9 @@ class TorrentMetainfo():
         Args:
             bencontent (bytes): bencoded torrent file contents
         """
+        if not bencontent:
+            raise TorrentDecodeError('Empty torrent file')
+
         try:
             content = bencodepy.decode(bencontent)
         except bencodepy.DecodingError as e:
@@ -39,8 +42,6 @@ class TorrentMetainfo():
         info_dict = content[b'info']
         self.info_hash = hashlib.sha1(bencodepy.encode(info_dict)).digest()
         self.info = self._decode_info_dict(info_dict)
-
-        print(self)
 
     def _decode_info_dict(self, d):
         info = {}
