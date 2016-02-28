@@ -1,10 +1,13 @@
+import os
+import copy
+import hashlib
+from pprint import pformat
 import bencodepy
 import voluptuous as vol
-import hashlib
 #from schema import Schema, And, Use, Optional
 
 
-class TorrentFile():
+class TorrentMetainfo():
     """A torrent metainfo file."""
     def __init__(self, bencontent):
         """
@@ -20,8 +23,8 @@ class TorrentFile():
         # TODO: validate shape using voluptuous or schema
 
         # 'encoding' field defines character encoding for 'pieces' field.
-        encoding = content.get(b'encoding').decode('utf-8')
-        if encoding and encoding.lower() != 'utf-8':
+        encoding = content.get(b'encoding')
+        if encoding and encoding.decode('utf-8').lower() != 'utf-8':
             raise(TorrentDecodeError('Unsupported encoding: %s' % encoding))
 
         self.announce = content[b'announce'].decode('utf-8')
@@ -35,28 +38,48 @@ class TorrentFile():
 
         info_dict = content[b'info']
         self.info_hash = hashlib.sha1(bencodepy.encode(info_dict)).digest()
-        self.info_dict = self.decode_info_dict(info_dict)
+        self.info = self._decode_info_dict(info_dict)
 
-    def decode_info_dict(self, d):
+        print(self)
+
+    def _decode_info_dict(self, d):
         info = {}
 
-        print(info)
-        # pieces_length
-        # pieces
+        info['piece_length'] = d[b'piece length']
 
-        # if files list not present then single file mode
-        #  name
-        #  length
-        # else
-        #  name
-        #  files
-        #    length
-        #    path
-        pass
+        SHA_LEN = 20
+        pieces_shas = d[b'pieces']
+        info['pieces'] = [pieces_shas[i:i+SHA_LEN]
+                          for i in range(0, len(pieces_shas), SHA_LEN)]
+        # TODO: different representation?
 
+        self.name = d[b'name'].decode('utf-8')
 
+        files = d.get(b'files')
+        if not files:
+            info['format'] = 'SINGLE_FILE'
+            info['files'] = None
+            info['length'] = d[b'length']
+        else:
+            info['format'] = 'MULTIPLE_FILE'
+            info['length'] = None
+            info['files'] = []
+            for f in d[b'files']:
+                path_segments = [v.decode('utf-8') for v in f[b'path']]
+                info['files'].append({
+                    'length': f[b'length'],
+                    'path': os.path.join(*path_segments)
+                })
 
+        return info
 
+    def __repr__(self):
+        tdict = copy.deepcopy(self.__dict__)
+        if len(tdict['info']['pieces']) > 3:
+            tdict['info']['pieces'] = tdict['info']['pieces'][:3] + ['...']
+        if tdict['info']['files'] and len(tdict['info']['files']) > 3:
+            tdict['info']['files'] = tdict['info']['files'][:3] + ['...']
+        return ''.join(('TorrentMetainfo(', pformat(tdict), ')'))
 
 
 class TorrentDecodeError(Exception):

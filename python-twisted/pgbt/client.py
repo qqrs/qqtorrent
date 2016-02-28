@@ -1,4 +1,4 @@
-from torrent import TorrentFile
+from torrent import TorrentMetainfo
 
 
 class PgbtClient():
@@ -14,4 +14,4 @@ class PgbtClient():
         with open(filename, 'rb') as f:
             contents = f.read()
             # TODO: handle errors
-            return TorrentFile(contents)
+            return TorrentMetainfo(contents)
