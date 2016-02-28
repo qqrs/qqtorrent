@@ -1,11 +1,27 @@
+import sys
 from nose.tools import *
-import pgbt
+import pgbt.cli
+import pgbt.torrent
+
 
 def setup():
-    print("SETUP!")
+    pass
+
 
 def teardown():
-    print("TEAR DOWN!")
+    pass
+
 
 def test_basic():
-    print("I RAN!")
+    pass
+
+
+def test_main():
+    assert_is_none(pgbt.cli.main())
+    if hasattr(sys.stdout, "getvalue"):
+        output = sys.stdout.getvalue().strip()
+        assert_equals(output,'hello')
+
+
+def test_torrent():
+    assert_equal(pgbt.torrent.torrentfn(), 'torrent')
