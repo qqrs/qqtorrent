@@ -22,6 +22,8 @@ TorrentFile
 InfoDict
 
 ActiveTorrent
+ > TorrentFile
+ > Peers
 
 TorrentPeer
 

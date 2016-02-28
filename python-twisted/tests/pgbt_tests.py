@@ -1,7 +1,6 @@
 import sys
 from nose.tools import *
 import pgbt.cli
-import pgbt.torrent
 
 
 def setup():
@@ -16,12 +15,19 @@ def test_basic():
     pass
 
 
-def test_main():
-    assert_is_none(pgbt.cli.main())
-    if hasattr(sys.stdout, "getvalue"):
+def test_main_help():
+    assert_raises(SystemExit, pgbt.cli.main, ['-h'])
+    if hasattr(sys.stdout, 'getvalue'):
         output = sys.stdout.getvalue().strip()
-        assert_equals(output,'hello')
+        assert_true('usage' in output)
 
 
-def test_torrent():
-    assert_equal(pgbt.torrent.torrentfn(), 'torrent')
+def test_main_noargs():
+    assert_raises(SystemExit, pgbt.cli.main, [])
+
+
+def test_main_hello():
+    pgbt.cli.main(['zzz', '--hello'])
+    if hasattr(sys.stdout, 'getvalue'):
+        output = sys.stdout.getvalue().strip()
+        assert_equals(output, 'hello')
