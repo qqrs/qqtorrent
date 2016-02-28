@@ -3,7 +3,7 @@ import copy
 from nose.tools import *
 import bencodepy
 
-from pgbt.torrent import TorrentMetainfo, TorrentDecodeError
+from pgbt.torrent_metainfo import TorrentMetainfo, TorrentDecodeError
 
 
 def setup():

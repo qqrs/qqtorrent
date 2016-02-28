@@ -1,4 +1,7 @@
-from torrent import TorrentMetainfo
+import requests
+import bencodepy
+
+from pgbt.torrent_metainfo import TorrentMetainfo
 
 
 class PgbtClient():
