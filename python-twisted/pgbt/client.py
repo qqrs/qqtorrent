@@ -12,3 +12,5 @@ class PgbtClient():
             # TODO: handle errors
             metainfo = TorrentMetainfo(contents)
             torrent = Torrent(metainfo)
+            torrent.start_torrent()
+            print(torrent.other_peers)
