@@ -2,6 +2,9 @@ import struct
 import requests
 import bencodepy
 
+from pgbt.config import CONFIG
+from pgbt.peer import TorrentPeer
+
 
 class Torrent():
     """An active torrent upload/download."""
@@ -17,7 +20,7 @@ class Torrent():
         self.tracker = None
 
     def start_torrent(self):
-        self.tracker = TorrentTracker(self)
+        self.tracker = TorrentTracker(self, self.metainfo.announce)
         self.tracker.send_announce_request()
 
     def add_peer(self, peer_dict):
@@ -25,7 +28,7 @@ class Torrent():
         peer = self.find_peer(**peer_dict)
         if peer:
             return peer
-        peer = TorrentPeer(**peer_dict)
+        peer = TorrentPeer(self, **peer_dict)
         self.other_peers.append(peer)
         return peer
 
@@ -39,16 +42,17 @@ class Torrent():
 
 class TorrentTracker():
     """An tracker connection for a torrent."""
-    def __init__(self, torrent):
+    def __init__(self, torrent, announce):
         self.torrent = torrent
+        self.announce = announce
         self.tracker_id = None
 
     def send_announce_request(self):
         # TODO: send 'port', 'uploaded', 'downloaded', 'left', 'compact',
         # 'no_peer_id', 'event' (started/completed/stopped)
-        http_resp = requests.get(self.torrent.metainfo.announce, {
+        http_resp = requests.get(self.announce, {
             'info_hash': self.torrent.metainfo.info_hash,
-            'peer_id': 'QQ-0000-000000000000'
+            'peer_id': CONFIG['peer_id']
         })
         self.handle_announce_response(http_resp)
 
@@ -59,7 +63,9 @@ class TorrentTracker():
         # TODO: use 'interval', 'tracker id', 'complete', 'incomplete'
 
         for peer_dict in d['peers']:
-            self.torrent.add_peer(peer_dict)
+            # TODO: raise error or warning on port = 0?
+            if peer_dict['ip'] and peer_dict['port'] > 0:
+                self.torrent.add_peer(peer_dict)
 
     @classmethod
     def decode_announce_response(cls, resp):
@@ -106,17 +112,6 @@ class TorrentTracker():
         return [{'ip': '%d.%d.%d.%d' % p[:4],
                  'port': int(p[4])}
                 for p in peers]
-
-
-class TorrentPeer():
-    def __init__(self, ip, port, peer_id=None):
-        self.peer_id = peer_id
-        self.ip = ip
-        self.port = port
-
-    def __repr__(self):
-        return ('TorrentPeer(ip={ip}, port={port}, peer_id={peer_id})'
-                .format(**self.__dict__))
 
 
 class AnnounceFailureError(Exception):

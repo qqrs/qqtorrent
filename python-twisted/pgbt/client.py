@@ -1,5 +1,6 @@
 from pgbt.torrent_metainfo import TorrentMetainfo
 from pgbt.torrent import Torrent
+from pgbt.peer import TorrentPeer
 
 
 class PgbtClient():
@@ -13,4 +14,4 @@ class PgbtClient():
             metainfo = TorrentMetainfo(contents)
             torrent = Torrent(metainfo)
             torrent.start_torrent()
-            print(torrent.other_peers)
+            torrent.other_peers[0].start_peer()
