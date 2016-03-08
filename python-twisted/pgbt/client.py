@@ -15,3 +15,5 @@ class PgbtClient():
             torrent = Torrent(metainfo)
             torrent.start_torrent()
             torrent.other_peers[0].start_peer()
+            while True:
+                torrent.other_peers[0].receive_message()
