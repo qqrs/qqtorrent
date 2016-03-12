@@ -1,8 +1,7 @@
 import struct
 import socket
-import requests
-import bencodepy
 import bitarray
+import hashlib
 
 from pgbt.config import CONFIG
 
@@ -31,7 +30,7 @@ class TorrentPeer():
 
     def start_peer(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(10)
+        self.sock.settimeout(2)
         self.sock.connect((self.ip, self.port))
         print('Sending peer handshake: %s:%s' % (self.ip, self.port))
         self.send_handshake()
@@ -40,6 +39,10 @@ class TorrentPeer():
     def send_handshake(self):
         msg = self.build_handshake(
             self.torrent.metainfo.info_hash, CONFIG['peer_id'])
+        self.sock.send(msg)
+
+    def send_message(self, msg_type, **params):
+        msg = self.build_message(msg_type, **params)
         self.sock.send(msg)
 
     def receive_handshake(self):
@@ -57,7 +60,9 @@ class TorrentPeer():
             print('%s received keep-alive' % self)
             return
         data = self.sock.recv(length_prefix)
-        # TODO: check data length == length_prefix
+        while len(data) < length_prefix:
+            data += self.sock.recv(length_prefix - len(data))
+            #raise PeerProtocolError('Incomplete message received')
         msg_dict = self.decode_message(data)
         self.handle_message(msg_dict)
 
@@ -80,8 +85,10 @@ class TorrentPeer():
             msg_type = 'not_interested'
         elif msg_id == 4:
             msg_type = 'have'
+            # TODO
         elif msg_id == 5:
             msg_type = 'bitfield'
+            # TODO
             bitfield = payload
             ba = bitarray.bitarray(endian='big')
             ba.frombytes(bitfield)
@@ -92,6 +99,9 @@ class TorrentPeer():
             msg_type = 'request'
         elif msg_id == 7:
             msg_type = 'piece'
+            (index, begin) = struct.unpack('!LL', payload[:8])
+            block = payload[8:]
+            print(hashlib.sha1(block).digest())
         elif msg_id == 8:
             msg_type = 'cancel'
         elif msg_id == 9:
@@ -100,9 +110,10 @@ class TorrentPeer():
             raise PeerProtocolMessageTypeError(
                 'Unrecognized message id: %s' % msg_id)
 
-        print('%s received msg: id=%s type=%s payload=%s' %
+        print('%s received msg: id=%s type=%s payload=%s%s' %
               (self, msg_id, msg_type,
-               ''.join('%02X' % v for v in payload)))
+               ''.join('%02X' % v for v in payload[:64]),
+               '...' if len(payload) >= 64 else ''))
 
 
     @staticmethod
@@ -114,6 +125,46 @@ class TorrentPeer():
         return msg
 
     @staticmethod
+    def build_message(msg_type, **params):
+        """<length_prefix><msg_id><payload>"""
+
+        msg_id = None
+        payload = b''
+        # TODO: implement all
+        if msg_type == 'choke':
+            msg_id = 0
+        elif msg_id == 'unchoke':
+            msg_id = 1
+        elif msg_type == 'interested':
+            msg_id = 2
+        elif msg_type == 'not_interested':
+            msg_id = 3
+        elif msg_type == 'have':
+            msg_id = 4
+        elif msg_type == 'bitfield':
+            msg_id = 5
+        elif msg_type == 'request':
+            msg_id = 6
+            payload = struct.pack('!LLL',
+                                  params['index'], params['begin'],
+                                  params['length'])
+        elif msg_type == 'piece':
+            msg_id = 7
+        elif msg_type == 'cancel':
+            msg_id = 8
+        elif msg_type == 'port':
+            msg_id = 9
+        else:
+            raise PeerProtocolMessageTypeError(
+                'Unrecognized message id: %s' % msg_id)
+
+        length_prefix = len(payload) + 1
+        fmt = '!LB%ds' % len(payload)
+        msg = struct.pack(fmt, length_prefix, msg_id, payload)
+
+        return msg
+
+    @staticmethod
     def decode_handshake(pstrlen, data):
         fmt = '!%ds8x20s20s' % pstrlen
         fields = struct.unpack(fmt, data)
@@ -121,7 +172,7 @@ class TorrentPeer():
         return {
             'pstr': fields[0].decode('utf-8'),
             'info_hash': fields[1],
-            'peer_id': fields[2].decode('utf-8')
+            'peer_id': fields[2]
         }
 
     @staticmethod
