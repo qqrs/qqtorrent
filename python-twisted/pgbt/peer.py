@@ -35,11 +35,9 @@ class TorrentPeer():
 
     def start_peer(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(0.2)
+        self.sock.settimeout(0.01)
         self.sock.connect((self.ip, self.port))
         self.send_handshake()
-        # TODO: make this async
-        self.receive_handshake()
 
     def send_handshake(self):
         log.debug('%s: send_handshake: %s:%s' % (self, self.ip, self.port))
@@ -48,8 +46,11 @@ class TorrentPeer():
         self.sock.send(msg)
 
     def send_message(self, msg_type, **params):
+        if not self.is_started:
+            raise PeerConnectionError(
+                'Attempted to send message before handshake received')
         log.debug('%s: send_message: type=%s params=%s' %
-                      (self, msg_type, params))
+                  (self, msg_type, params))
         msg = self.build_message(msg_type, **params)
         self.sock.send(msg)
 
@@ -59,6 +60,7 @@ class TorrentPeer():
         handshake = self.decode_handshake(pstrlen, data)
         if handshake['pstr'] != 'BitTorrent protocol':
             raise PeerProtocolError('Protocol not recognized')
+        self.is_started = True
         log.debug('%s: received_handshake' % self)
 
     def receive_message(self):
@@ -210,6 +212,10 @@ class AnnounceFailureError(Exception):
 
 
 class AnnounceDecodeError(Exception):
+    pass
+
+
+class PeerConnectionError(Exception):
     pass
 
 

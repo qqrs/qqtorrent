@@ -26,6 +26,7 @@ class Torrent():
 
         self.piece_blocks = [[] for _ in self.metainfo.info['pieces']]
         self.complete_pieces = [None for _ in self.metainfo.info['pieces']]
+        self.is_complete = False
 
     def start_torrent(self):
         self.tracker = TorrentTracker(self, self.metainfo.announce)
@@ -83,6 +84,7 @@ class Torrent():
 
     def handle_completed_torrent(self):
         log.info('%s: handle_completed_torrent' % (self))
+        self.is_complete = True
         data = bytes(v for piece in self.complete_pieces for v in piece)
 
         if self.on_complete:

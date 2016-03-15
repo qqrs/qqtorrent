@@ -51,6 +51,8 @@ class PgbtClient():
         peer = torrent.other_peers[0]
         peer.start_peer()
 
+        peer.receive_handshake()
+
         def _drain_msgs():
             try:
                 while True:
@@ -61,17 +63,25 @@ class PgbtClient():
         peer.send_message('interested')
         _drain_msgs()
 
-        num_pieces = len(torrent.metainfo.info['pieces'])
-        for i in range(num_pieces):
-            piece_length = torrent.metainfo.get_piece_length(i)
-            for begin in range(0, piece_length, CONFIG['block_length']):
-                block_length = min(piece_length, CONFIG['block_length'])
+        def _request_all_pieces():
+            num_pieces = len(torrent.metainfo.info['pieces'])
+            for i in range(num_pieces):
+                if torrent.complete_pieces[i] is not None:
+                    continue
+                piece_length = torrent.metainfo.get_piece_length(i)
+                for begin in range(0, piece_length, CONFIG['block_length']):
+                    block_length = min(piece_length, CONFIG['block_length'])
 
-                peer.send_message(
-                    'request', index=i, begin=begin, length=block_length)
+                    peer.send_message(
+                        'request', index=i, begin=begin, length=block_length)
+                    _drain_msgs()
+
+            for _ in range(10):
+                if not any(v is None for v in torrent.complete_pieces):
+                    break
+                time.sleep(1)
                 _drain_msgs()
+                print('Missing pieces: %s' % torrent.piece_blocks)
 
-        while any(v is None for v in torrent.complete_pieces):
-            time.sleep(1)
-            _drain_msgs()
-            print('Missing pieces: %s' % torrent.piece_blocks)
+        while not torrent.is_complete:
+            _request_all_pieces()
