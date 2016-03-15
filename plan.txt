@@ -28,3 +28,11 @@ ActiveTorrent
 TorrentPeer
 
 Message
+
+
+=======
+
+next steps:
+1. concurrency to handle multiple clients
+ > twisted
+ > threads
