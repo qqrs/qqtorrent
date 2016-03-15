@@ -41,6 +41,7 @@ class TorrentPeer():
         self.sock.send(msg)
 
     def send_message(self, msg_type, **params):
+        print('Sending message type=%s params=%s' % (msg_type, params))
         msg = self.build_message(msg_type, **params)
         self.sock.send(msg)
 
@@ -121,7 +122,7 @@ class TorrentPeer():
 
         print('%s received msg: id=%s type=%s payload=%s%s' %
               (self, msg_id, msg_type,
-               ''.join('%02X' % v for v in payload[:64]),
+               ''.join('%02X' % v for v in payload[:60]),
                '...' if len(payload) >= 64 else ''))
 
 

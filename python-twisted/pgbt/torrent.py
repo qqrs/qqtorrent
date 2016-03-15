@@ -9,13 +9,14 @@ from pgbt.peer import TorrentPeer
 
 class Torrent():
     """An active torrent upload/download."""
-    def __init__(self, metainfo):
+    def __init__(self, metainfo, on_complete=None):
         """
         Args:
             metainfo (TorrentMetainfo): decoded torrent file
             autostart (bool): immediately connect to tracker and start peers
         """
         self.metainfo = metainfo
+        self.on_complete = on_complete
         self.active_peers = []
         self.other_peers = []
         self.tracker = None
@@ -79,7 +80,10 @@ class Torrent():
 
     def handle_completed_torrent(self):
         print('Torrent completed!')
+        data = bytes(v for piece in self.complete_pieces for v in piece)
 
+        if self.on_complete:
+            self.on_complete(self, data)
 
 class TorrentTracker():
     """An tracker connection for a torrent."""
