@@ -22,6 +22,9 @@ class TorrentPeer():
         self.peer_choking = True
         self.peer_interested = False
 
+        self.peer_pieces = [False for _ in range(
+                            len(self.torrent.metainfo.info['pieces']))]
+
     def __del__(self):
         if self.sock:
             self.sock.close()
@@ -101,16 +104,16 @@ class TorrentPeer():
             msg_type = 'not_interested'
         elif msg_id == 4:
             msg_type = 'have'
-            # TODO
+            (index,) = struct.unpack('!L', payload)
+            self.peer_pieces[index] = True
         elif msg_id == 5:
             msg_type = 'bitfield'
-            # TODO
             bitfield = payload
             ba = bitarray.bitarray(endian='big')
             ba.frombytes(bitfield)
-            for i in range(len(self.torrent.metainfo.info['pieces'])):
-                if not ba.pop():
-                    print('Missing piece: %x' % i)
+            num_pieces = len(self.torrent.metainfo.info['pieces'])
+            # Bitfield only comes once as first msg so it can replace list.
+            self.peer_pieces = ba.tolist()[:num_pieces]
         elif msg_id == 6:
             msg_type = 'request'
         elif msg_id == 7:
