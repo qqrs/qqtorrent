@@ -1,10 +1,13 @@
 import socket
 import time
 import os
+import logging
 
 from pgbt.torrent_metainfo import TorrentMetainfo
 from pgbt.torrent import Torrent
 from pgbt.config import CONFIG
+
+log = logging.getLogger(__name__)
 
 
 class PgbtClient():
@@ -22,8 +25,27 @@ class PgbtClient():
         torrent = Torrent(metainfo, self.handle_completed_torrent)
         self.active_torrents.append(torrent)
 
+    def handle_completed_torrent(self, torrent, data):
+        print('Torrent completed!')
+        if torrent.metainfo.info['format'] == 'SINGLE_FILE':
+            self.save_single_file(torrent, data)
+        else:
+            self.save_multiple_file(torrent, data)
+
+    def save_single_file(self, torrent, data):
+        (_, filename) = os.path.split(torrent.metainfo.name)
+        filepath = (os.path.join(os.path.expanduser(self.outdir), filename)
+                    if self.outdir else filename)
+        with open(filepath, 'wb') as f:
+            f.write(data)
+        log.info('save_single_file: %s' % filepath)
+
+    def save_multiple_file(self, torrent, data):
+        raise NotImplementedError
+
     def run_torrent(self):
         """Download first torrent from first peer in a single thread."""
+        # \/ this is a hack \/
         torrent = self.active_torrents[0]
         torrent.start_torrent()
         peer = torrent.other_peers[0]
@@ -52,21 +74,4 @@ class PgbtClient():
         while any(v is None for v in torrent.complete_pieces):
             time.sleep(1)
             _drain_msgs()
-            print(torrent.piece_blocks)
-
-    def handle_completed_torrent(self, torrent, data):
-        if torrent.metainfo.info['format'] == 'SINGLE_FILE':
-            self.save_single_file(torrent, data)
-        else:
-            self.save_multiple_file(torrent, data)
-
-    def save_single_file(self, torrent, data):
-        (_, filename) = os.path.split(torrent.metainfo.name)
-        filepath = (os.path.join(os.path.expanduser(self.outdir), filename)
-                    if self.outdir else filename)
-        with open(filepath, 'wb') as f:
-            f.write(data)
-        print('Wrote output file: %s' % filepath)
-
-    def save_multiple_file(self, torrent, data):
-        raise NotImplementedError
+            print('Missing pieces: %s' % torrent.piece_blocks)

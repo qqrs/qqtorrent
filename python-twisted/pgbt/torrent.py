@@ -2,9 +2,12 @@ import struct
 import requests
 import bencodepy
 import hashlib
+import logging
 
 from pgbt.config import CONFIG
 from pgbt.peer import TorrentPeer
+
+log = logging.getLogger(__name__)
 
 
 class Torrent():
@@ -58,7 +61,7 @@ class Torrent():
 
     def handle_completed_piece(self, piece_index):
         if self.complete_pieces[piece_index] is not None:
-            print('Piece %d already completed' % piece_index)
+            log.warning('Piece %d already completed' % piece_index)
             return
 
         self.piece_blocks[piece_index].sort(key=lambda v: v[0])
@@ -73,17 +76,18 @@ class Torrent():
 
         self.complete_pieces[piece_index] = piece
         self.piece_blocks[piece_index] = None
-        print('Completed piece: %d' % piece_index)
+        log.debug('handle_completed_piece: %d' % piece_index)
 
         if not any(v is None for v in self.complete_pieces):
             self.handle_completed_torrent()
 
     def handle_completed_torrent(self):
-        print('Torrent completed!')
+        log.info('%s: handle_completed_torrent' % (self))
         data = bytes(v for piece in self.complete_pieces for v in piece)
 
         if self.on_complete:
             self.on_complete(self, data)
+
 
 class TorrentTracker():
     """An tracker connection for a torrent."""

@@ -1,8 +1,11 @@
 import struct
 import socket
 import bitarray
+import logging
 
 from pgbt.config import CONFIG
+
+log = logging.getLogger(__name__)
 
 
 class TorrentPeer():
@@ -31,17 +34,19 @@ class TorrentPeer():
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(0.2)
         self.sock.connect((self.ip, self.port))
-        print('Sending peer handshake: %s:%s' % (self.ip, self.port))
         self.send_handshake()
+        # TODO: make this async
         self.receive_handshake()
 
     def send_handshake(self):
+        log.debug('%s: send_handshake: %s:%s' % (self, self.ip, self.port))
         msg = self.build_handshake(
             self.torrent.metainfo.info_hash, CONFIG['peer_id'])
         self.sock.send(msg)
 
     def send_message(self, msg_type, **params):
-        print('Sending message type=%s params=%s' % (msg_type, params))
+        log.debug('%s: send_message: type=%s params=%s' %
+                      (self, msg_type, params))
         msg = self.build_message(msg_type, **params)
         self.sock.send(msg)
 
@@ -51,7 +56,7 @@ class TorrentPeer():
         handshake = self.decode_handshake(pstrlen, data)
         if handshake['pstr'] != 'BitTorrent protocol':
             raise PeerProtocolError('Protocol not recognized')
-        print('%s received handshake' % self)
+        log.debug('%s: received_handshake' % self)
 
     def receive_message(self):
         # get length prefix
@@ -63,7 +68,8 @@ class TorrentPeer():
         # unpack length prefix
         length_prefix = struct.unpack('!L', data)[0]
         if length_prefix == 0:
-            print('%s received keep-alive' % self)
+            # TODO: handle keep-alive
+            log.debug('%s: receive_message: keep-alive' % self)
             return
 
         # get data
@@ -120,9 +126,9 @@ class TorrentPeer():
             raise PeerProtocolMessageTypeError(
                 'Unrecognized message id: %s' % msg_id)
 
-        print('%s received msg: id=%s type=%s payload=%s%s' %
+        log.debug('%s: receive_msg: id=%s type=%s payload=%s%s' %
               (self, msg_id, msg_type,
-               ''.join('%02X' % v for v in payload[:60]),
+               ''.join('%02X' % v for v in payload[:40]),
                '...' if len(payload) >= 64 else ''))
 
 
