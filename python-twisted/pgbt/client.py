@@ -1,8 +1,10 @@
+import socket
+import time
+
 from pgbt.torrent_metainfo import TorrentMetainfo
 from pgbt.torrent import Torrent
-from pgbt.peer import TorrentPeer
+from pgbt.config import CONFIG
 
-import socket
 
 class PgbtClient():
     def __init__(self):
@@ -16,19 +18,33 @@ class PgbtClient():
         metainfo = TorrentMetainfo(contents)
         torrent = Torrent(metainfo)
         torrent.start_torrent()
-        torrent.other_peers[0].start_peer()
+        peer = torrent.other_peers[0]
+        peer.start_peer()
 
         def _drain_msgs():
             try:
                 while True:
-                    torrent.other_peers[0].receive_message()
+                    peer.receive_message()
             except socket.timeout:
                 pass
         _drain_msgs()
-        torrent.other_peers[0].send_message('interested')
+        peer.send_message('interested')
         _drain_msgs()
 
-        for (i, piece_sha) in enumerate(torrent.metainfo.info['pieces']):
-            torrent.other_peers[0].send_message('request', index=i, begin=0, length=2**14)
-            print(piece_sha)
-            _drain_msgs()
+        num_pieces = len(torrent.metainfo.info['pieces'])
+        for i in range(num_pieces):
+            piece_length = torrent.metainfo.get_piece_length(i)
+            for begin in range(0, piece_length, CONFIG['block_length']):
+                block_length = min(piece_length, CONFIG['block_length'])
+
+                print('Sending request (%s, %s, %s)' % (i, begin, block_length))
+                peer.send_message(
+                    'request', index=i, begin=begin, length=block_length)
+                _drain_msgs()
+
+        time.sleep(5)
+        _drain_msgs()
+        print(num_pieces)
+        print(len(torrent.piece_blocks))
+        print(torrent.piece_blocks)
+        import ipdb; ipdb.set_trace()

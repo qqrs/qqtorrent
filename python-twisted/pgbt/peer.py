@@ -1,7 +1,6 @@
 import struct
 import socket
 import bitarray
-import hashlib
 
 from pgbt.config import CONFIG
 
@@ -30,7 +29,7 @@ class TorrentPeer():
 
     def start_peer(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(2)
+        self.sock.settimeout(0.2)
         self.sock.connect((self.ip, self.port))
         print('Sending peer handshake: %s:%s' % (self.ip, self.port))
         self.send_handshake()
@@ -54,15 +53,25 @@ class TorrentPeer():
         print('%s received handshake' % self)
 
     def receive_message(self):
-        data = self.sock.recv(4)
+        # get length prefix
+        data_len = 4
+        data = self.sock.recv(data_len)
+        while len(data) < data_len:
+            data += self.sock.recv(data_len - len(data))
+
+        # unpack length prefix
         length_prefix = struct.unpack('!L', data)[0]
         if length_prefix == 0:
             print('%s received keep-alive' % self)
             return
+
+        # get data
         data = self.sock.recv(length_prefix)
         while len(data) < length_prefix:
             data += self.sock.recv(length_prefix - len(data))
             #raise PeerProtocolError('Incomplete message received')
+
+        # decode data and handle message
         msg_dict = self.decode_message(data)
         self.handle_message(msg_dict)
 
@@ -101,7 +110,7 @@ class TorrentPeer():
             msg_type = 'piece'
             (index, begin) = struct.unpack('!LL', payload[:8])
             block = payload[8:]
-            print(hashlib.sha1(block).digest())
+            self.torrent.handle_block(index, begin, block)
         elif msg_id == 8:
             msg_type = 'cancel'
         elif msg_id == 9:

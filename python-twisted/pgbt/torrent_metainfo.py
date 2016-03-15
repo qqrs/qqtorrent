@@ -82,6 +82,13 @@ class TorrentMetainfo():
             tdict['info']['files'] = tdict['info']['files'][:3] + ['...']
         return ''.join(('TorrentMetainfo(', pformat(tdict), ')'))
 
+    def get_piece_length(self, index):
+        num_pieces = len(self.info['pieces'])
+        piece_length = self.info['piece_length']
+        if index == num_pieces - 1:     # last piece
+            return (self.info['length'] - (num_pieces - 1) * piece_length)
+        return piece_length
+
 
 class TorrentDecodeError(Exception):
     pass

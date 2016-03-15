@@ -1,6 +1,7 @@
 import struct
 import requests
 import bencodepy
+import hashlib
 
 from pgbt.config import CONFIG
 from pgbt.peer import TorrentPeer
@@ -18,6 +19,9 @@ class Torrent():
         self.active_peers = []
         self.other_peers = []
         self.tracker = None
+
+        self.piece_blocks = [[] for _ in self.metainfo.info['pieces']]
+        self.complete_pieces = [None for _ in self.metainfo.info['pieces']]
 
     def start_torrent(self):
         self.tracker = TorrentTracker(self, self.metainfo.announce)
@@ -38,6 +42,43 @@ class Torrent():
                 if v.ip == ip and v.port == port:
                     return v
         return None
+
+    def handle_block(self, piece_index, begin, block):
+        for v in self.piece_blocks[piece_index]:
+            if v[0] == begin:       # TODO: check for overlap of block range
+                # already got this piece
+                return
+        self.piece_blocks[piece_index].append((begin, block))
+
+        expected_length = self.metainfo.get_piece_length(piece_index)
+        piece_length = sum(len(v[1]) for v in self.piece_blocks[piece_index])
+        if piece_length == expected_length:
+            self.handle_completed_piece(piece_index)
+
+    def handle_completed_piece(self, piece_index):
+        if self.complete_pieces[piece_index] is not None:
+            print('Piece %d already completed' % piece_index)
+            return
+
+        self.piece_blocks[piece_index].sort(key=lambda v: v[0])
+        blocks = [v[1] for v in self.piece_blocks[piece_index]]
+        piece = bytes(v for block in blocks for v in block)
+
+        piece_sha = hashlib.sha1(piece).digest()
+        canonical_sha = self.metainfo.info['pieces'][piece_index]
+        if piece_sha != canonical_sha:
+            # TODO: discard and retry piece
+            raise TorrentPieceError('Piece %d sha mismatch')
+
+        self.complete_pieces[piece_index] = piece
+        self.piece_blocks[piece_index] = None
+        print('Completed piece: %d' % piece_index)
+
+        if not any(v is None for v in self.complete_pieces):
+            self.handle_completed_torrent()
+
+    def handle_completed_torrent(self):
+        print('Torrent completed!')
 
 
 class TorrentTracker():
@@ -119,4 +160,8 @@ class AnnounceFailureError(Exception):
 
 
 class AnnounceDecodeError(Exception):
+    pass
+
+
+class TorrentPieceError(Exception):
     pass
