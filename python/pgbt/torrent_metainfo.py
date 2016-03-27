@@ -63,7 +63,6 @@ class TorrentMetainfo():
             info['length'] = d[b'length']
         else:
             info['format'] = 'MULTIPLE_FILE'
-            info['length'] = None
             info['files'] = []
             for f in d[b'files']:
                 path_segments = [v.decode('utf-8') for v in f[b'path']]
@@ -71,6 +70,7 @@ class TorrentMetainfo():
                     'length': f[b'length'],
                     'path': os.path.join(*path_segments)
                 })
+            info['length'] = sum(f['length'] for f in info['files'])
 
         return info
 

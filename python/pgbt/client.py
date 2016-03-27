@@ -53,6 +53,17 @@ class PgbtClient():
         log.info('save_single_file: %s' % filepath)
 
     def save_multiple_file(self, torrent, data):
+        begin = 0
+        base_dir = torrent.metadata.name
+        base_dir = (os.path.join(os.path.expanduser(self.outdir), base_dir)
+                    if self.outdir else base_dir)
+        for file_dict in torrent.metadata['files']:
+            filepath = os.path.join(base_dir, file_dict['path'])
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            file_data = data[begin:file_dict['length']]
+            with open(filepath, 'wb') as f:
+                f.write(file_data)
+            begin += file_dict['length']
         raise NotImplementedError
 
     def run_torrent(self):
