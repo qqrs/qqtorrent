@@ -2,6 +2,7 @@ import struct
 import socket
 import bitarray
 import logging
+import random
 from twisted.internet import reactor
 
 from pgbt.config import CONFIG
@@ -105,19 +106,24 @@ class TorrentPeer():
     def choose_next_piece(self):
         """Return piece index of best piece to fetch from peer next."""
         num_pieces = len(self.torrent.metainfo.info['pieces'])
+        # Get first piece that is not complete, not already request from any
+        # peer, and available from this peer.
         for i in range(num_pieces):
             if (not self.torrent.complete_pieces[i]
                     and not self.torrent.piece_requests[i]
                     and self.peer_pieces[i]):
                 return i
 
-        # TODO: better endgame
-        for i in range(num_pieces):
-            if (not self.torrent.complete_pieces[i]
-                    and self.peer_pieces[i]):
-                return i
+        # Engdgame. Get a piece that is not complete and available from this
+        # peer, even if already requested from another peer.
+        candidates = [i for i in range(num_pieces)
+                        if not self.torrent.complete_pieces[i]
+                        and self.peer_pieces[i]]
+        if not candidates:
+            # Raise exception so we can disconnect.
+            raise PeerNoUnrequestedPiecesError
+        return random.choice(candidates)
 
-        raise PeerNoUnrequestedPiecesError
 
     #def start_peer(self):
         #log.info('%s: start_peer', self)
