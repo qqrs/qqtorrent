@@ -107,14 +107,14 @@ class TorrentPeer():
         """Return piece index of best piece to fetch from peer next."""
         num_pieces = len(self.torrent.metainfo.info['pieces'])
         # Get first piece that is not complete, not already request from any
-        # peer, and available from this peer.
+        # peer, and is available from this peer.
         for i in range(num_pieces):
             if (not self.torrent.complete_pieces[i]
                     and not self.torrent.piece_requests[i]
                     and self.peer_pieces[i]):
                 return i
 
-        # Engdgame. Get a piece that is not complete and available from this
+        # Engdgame. Get a piece that is not complete and is available from this
         # peer, even if already requested from another peer.
         candidates = [i for i in range(num_pieces)
                         if not self.torrent.complete_pieces[i]
