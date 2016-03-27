@@ -6,7 +6,6 @@ from twisted.internet import reactor
 
 from pgbt.torrent_metainfo import TorrentMetainfo
 from pgbt.torrent import Torrent
-from pgbt.conn import PeerConnectionFactory
 from pgbt.config import CONFIG
 
 log = logging.getLogger(__name__)
@@ -54,28 +53,28 @@ class PgbtClient():
 
     def save_multiple_file(self, torrent, data):
         begin = 0
-        base_dir = torrent.metadata.name
+        base_dir = torrent.metainfo.name
         base_dir = (os.path.join(os.path.expanduser(self.outdir), base_dir)
                     if self.outdir else base_dir)
-        for file_dict in torrent.metadata['files']:
+        for file_dict in torrent.metainfo['files']:
             filepath = os.path.join(base_dir, file_dict['path'])
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             file_data = data[begin:file_dict['length']]
             with open(filepath, 'wb') as f:
                 f.write(file_data)
+            log.info('save_multiple_file: %s' % filepath)
             begin += file_dict['length']
-        raise NotImplementedError
+
+        if begin != len(data):
+            log.warn('begin != len(data)')
 
     def run_torrent(self):
         torrent = self.active_torrents[0]
         torrent.start_torrent()
-        log.info('Found %s peers: %s' %
-                 (len(torrent.peers), torrent.peers))
+        #log.info('Found %s peers: %s' %
+                 #(len(torrent.peers), torrent.peers))
 
         #peer = [v for v in torrent.peers if v.ip == '96.126.104.219'][0]
-        for peer in torrent.peers[:CONFIG['max_peers']]:
-            f = PeerConnectionFactory(peer)
-            reactor.connectTCP(peer.ip, peer.port, f)
         reactor.run()
 
     def zrun_torrent(self):

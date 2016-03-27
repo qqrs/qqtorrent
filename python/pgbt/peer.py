@@ -2,8 +2,10 @@ import struct
 import socket
 import bitarray
 import logging
+from twisted.internet import reactor
 
 from pgbt.config import CONFIG
+from pgbt.conn import PeerConnectionFactory
 
 log = logging.getLogger(__name__)
 
@@ -44,9 +46,11 @@ class TorrentPeer():
 
     def handle_connection_failed(self):
         self.conn_failed = True
+        self.torrent.handle_peer_stopped(self)
 
     def handle_connection_lost(self):
         self.conn_failed = True
+        self.torrent.handle_peer_stopped(self)
 
     def handle_data_received(self, recv_data):
         """Parse individual messages from the data."""
@@ -74,6 +78,10 @@ class TorrentPeer():
         #self.sock.send(msg)
         self.conn.write(msg)
 
+    def connect(self):
+        f = PeerConnectionFactory(self)
+        reactor.connectTCP(self.ip, self.port, f)
+
     def run_download(self):
         if not self.is_started:
             self.send_handshake()
@@ -83,7 +91,13 @@ class TorrentPeer():
             # Wait for piece to finish downloading.
             pass
         else:
-            piece = self.choose_next_piece()
+            try:
+                piece = self.choose_next_piece()
+            except PeerNoUnrequestedPiecesError:
+                self.conn.disconnect()
+                self.torrent.handle_peer_stopped(self)
+                return
+
             self.requested_piece = piece
             self.torrent.piece_requests[piece].append(self)
             self.request_next_block(piece, None)
@@ -133,11 +147,8 @@ class TorrentPeer():
 
     def request_next_block(self, piece_index, begin):
         piece_length = self.torrent.metainfo.get_piece_length(piece_index)
-        block_length = min(piece_length, CONFIG['block_length'])
-        if begin is None:
-            begin = 0
-        else:
-            begin += CONFIG['block_length']
+        begin = 0 if begin is None else begin + CONFIG['block_length']
+        block_length = min(piece_length - begin, CONFIG['block_length'])
 
         self.send_message(
             'request', index=piece_index, begin=begin, length=block_length)

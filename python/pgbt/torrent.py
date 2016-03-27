@@ -19,12 +19,13 @@ class Torrent():
             autostart (bool): immediately connect to tracker and start peers
         """
         self.metainfo = metainfo
-        self.on_complete = on_complete
-        self.on_completed_piece = on_completed_piece
         self.active_peers = []
         self.peers = []
         self.tracker = None
         self.is_complete = False
+
+        self.on_complete = on_complete
+        self.on_completed_piece = on_completed_piece
 
         # Received blocks for incomplete pieces.
         self.piece_blocks = [[] for _ in self.metainfo.info['pieces']]
@@ -38,6 +39,8 @@ class Torrent():
     def start_torrent(self):
         self.tracker = TorrentTracker(self, self.metainfo.announce)
         self.tracker.send_announce_request()
+        for peer in self.peers[:CONFIG['max_peers']]:
+            peer.connect()
 
     def add_peer(self, peer_dict):
         """Add peer if not already present."""
@@ -56,6 +59,9 @@ class Torrent():
         return None
 
     def handle_block(self, peer, piece_index, begin, block):
+        if self.complete_pieces[piece_index]:
+            # Piece already finished
+            return
         for v in self.piece_blocks[piece_index]:
             if v[0] == begin:       # TODO: check for overlap of block range
                 # already got this piece
@@ -111,13 +117,26 @@ class Torrent():
         if self.on_complete:
             self.on_complete(self, data)
 
+    def handle_peer_stopped(self, peer):
+        """A peer failed or completed so start a new one."""
+        # TODO: better active count
+        num_active = sum(1 for p in self.peers
+                         if p.is_started and not p.conn_failed)
+        if num_active >= CONFIG['max_peers']:
+            return
+        for p in self.peers:
+            if p.is_started or p.conn_failed:
+                continue
+            log.info('handle_peer_stopped: starting new peer: %s' % p)
+            p.connect()
+            break
+
     def get_progress_string(self):
         num_complete = sum(v is not None for v in self.complete_pieces)
         num_pieces = len(self.complete_pieces)
         pct_complete = 100.0 * num_complete / num_pieces
         return('%s / %s (%02.1f%%) complete'
                % (num_complete, num_pieces, pct_complete))
-
 
 
 class TorrentTracker():

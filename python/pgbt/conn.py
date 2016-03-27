@@ -19,6 +19,9 @@ class PeerConnectionProtocol(protocol.Protocol):
     def write(self, data):
         self.transport.write(data)
 
+    def disconnect(self):
+        self.transport.loseConnection()
+
 
 class PeerConnectionFactory(protocol.ClientFactory):
     protocol = PeerConnectionProtocol
@@ -28,9 +31,11 @@ class PeerConnectionFactory(protocol.ClientFactory):
 
     def clientConnectionFailed(self, connector, reason):
         log.warn('%s: clientConnectionFailed: %s' % (self.peer, reason))
+        self.peer.handle_connection_failed()
 
     def clientConnectionLost(self, connector, reason):
         log.warn('%s: clientConnectionLost: %s' % (self.peer, reason))
+        self.peer.handle_connection_lost()
 
 
 #def main():
