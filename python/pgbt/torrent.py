@@ -107,15 +107,17 @@ class Torrent():
         if self.on_completed_piece:
             self.on_completed_piece(self)
 
+        peer.run_download()
         if not any(v is None for v in self.complete_pieces):
             self.handle_completed_torrent()
-        else:
-            peer.run_download()
 
     def handle_completed_torrent(self):
         log.info('%s: handle_completed_torrent' % (self))
         self.is_complete = True
         data = bytes(v for piece in self.complete_pieces for v in piece)
+
+        for p in self.peers:
+            p.handle_torrent_completed()
 
         if self.on_complete:
             self.on_complete(self, data)
@@ -123,6 +125,8 @@ class Torrent():
     def handle_peer_stopped(self, peer):
         """A peer failed or completed so start a new one."""
         # TODO: better active count
+        if self.is_complete:
+            return
         num_active = sum(1 for p in self.peers
                          if p.is_started and not p.conn_failed)
         if num_active >= CONFIG['max_peers']:

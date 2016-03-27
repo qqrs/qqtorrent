@@ -32,9 +32,9 @@ class TorrentPeer():
                             len(self.torrent.metainfo.info['pieces']))]
         self.requested_piece = None
 
-    def __del__(self):
-        if self.sock:
-            self.sock.close()
+    #def __del__(self):
+        #if self.sock:
+            #self.sock.close()
 
     def __repr__(self):
         return ('TorrentPeer(ip={ip}, port={port})'
@@ -47,10 +47,12 @@ class TorrentPeer():
 
     def handle_connection_failed(self):
         self.conn_failed = True
+        self.conn = None
         self.torrent.handle_peer_stopped(self)
 
     def handle_connection_lost(self):
         self.conn_failed = True
+        self.conn = None
         self.torrent.handle_peer_stopped(self)
 
     def handle_data_received(self, recv_data):
@@ -67,6 +69,11 @@ class TorrentPeer():
                 break
             data = data[nbytes:]
         self.recv_buffer = data
+
+    def handle_torrent_completed(self):
+        if self.conn:
+            self.conn.disconnect()
+        self.requested_piece = None
 
     def on_handshake_ok(self):
         self.run_download()
