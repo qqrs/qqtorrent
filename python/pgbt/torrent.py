@@ -63,8 +63,10 @@ class Torrent():
             # Piece already finished
             return
         for v in self.piece_blocks[piece_index]:
-            if v[0] == begin:       # TODO: check for overlap of block range
-                # already got this piece
+            # TODO: check for overlap of block range
+            if v[0] == begin:
+                # Already got this block.
+                peer.request_next_block(piece_index, begin)
                 return
         self.piece_blocks[piece_index].append((begin, block))
 
@@ -93,6 +95,7 @@ class Torrent():
         self.complete_pieces[piece_index] = piece
         self.piece_blocks[piece_index] = None
 
+        # Clear piece request bookkeeping on peers and torrent.
         for p in self.piece_requests[piece_index]:
             if p.requested_piece == piece_index:
                 p.requested_piece = None
