@@ -24,10 +24,14 @@ class PgbtClient():
 
         # TODO: handle errors
         metainfo = TorrentMetainfo(contents)
-        torrent = Torrent(metainfo, self.handle_completed_torrent)
+        torrent = Torrent(
+            metainfo, self.on_completed_torrent, self.on_completed_piece)
         self.active_torrents.append(torrent)
 
-    def handle_completed_torrent(self, torrent, data):
+    def on_completed_piece(self, torrent):
+        print('%s: %s' % (torrent, torrent.get_progress_string()))
+
+    def on_completed_torrent(self, torrent, data):
         print('Torrent completed!')
         if torrent.metainfo.info['format'] == 'SINGLE_FILE':
             self.save_single_file(torrent, data)
@@ -55,11 +59,12 @@ class PgbtClient():
         torrent = self.active_torrents[0]
         torrent.start_torrent()
         log.info('Found %s peers: %s' %
-                 (len(torrent.other_peers), torrent.other_peers))
+                 (len(torrent.peers), torrent.peers))
 
-        peer = [v for v in torrent.other_peers if v.ip == '96.126.104.219'][0]
-        f = PeerConnectionFactory(peer)
-        reactor.connectTCP(peer.ip, peer.port, f)
+        #peer = [v for v in torrent.peers if v.ip == '96.126.104.219'][0]
+        for peer in torrent.peers[:CONFIG['max_peers']]:
+            f = PeerConnectionFactory(peer)
+            reactor.connectTCP(peer.ip, peer.port, f)
         reactor.run()
 
     def zrun_torrent(self):
@@ -68,9 +73,9 @@ class PgbtClient():
         torrent = self.active_torrents[0]
         torrent.start_torrent()
         log.info('Found %s peers: %s' %
-                 (len(torrent.other_peers), torrent.other_peers))
+                 (len(torrent.peers), torrent.peers))
 
-        peer = torrent.other_peers[1]
+        peer = torrent.peers[1]
         peer.start_peer()
 
         while not peer.is_started:

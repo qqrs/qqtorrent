@@ -96,6 +96,13 @@ class TorrentPeer():
                     and not self.torrent.piece_requests[i]
                     and self.peer_pieces[i]):
                 return i
+
+        # TODO: better endgame
+        for i in range(num_pieces):
+            if (not self.torrent.complete_pieces[i]
+                    and self.peer_pieces[i]):
+                return i
+
         raise PeerNoUnrequestedPiecesError
 
     #def start_peer(self):

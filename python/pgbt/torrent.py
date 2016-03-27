@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 class Torrent():
     """An active torrent upload/download."""
-    def __init__(self, metainfo, on_complete=None):
+    def __init__(self, metainfo, on_complete=None, on_completed_piece=None):
         """
         Args:
             metainfo (TorrentMetainfo): decoded torrent file
@@ -20,8 +20,9 @@ class Torrent():
         """
         self.metainfo = metainfo
         self.on_complete = on_complete
+        self.on_completed_piece = on_completed_piece
         self.active_peers = []
-        self.other_peers = []
+        self.peers = []
         self.tracker = None
         self.is_complete = False
 
@@ -44,11 +45,11 @@ class Torrent():
         if peer:
             return peer
         peer = TorrentPeer(self, **peer_dict)
-        self.other_peers.append(peer)
+        self.peers.append(peer)
         return peer
 
     def find_peer(self, ip, port, **kwargs):
-        for peer_list in (self.active_peers, self.other_peers):
+        for peer_list in (self.active_peers, self.peers):
             for v in peer_list:
                 if v.ip == ip and v.port == port:
                     return v
@@ -94,6 +95,8 @@ class Torrent():
                 pass
         self.piece_requests[piece_index] = None
         log.debug('handle_completed_piece: %d' % piece_index)
+        if self.on_completed_piece:
+            self.on_completed_piece(self)
 
         if not any(v is None for v in self.complete_pieces):
             self.handle_completed_torrent()
@@ -107,6 +110,14 @@ class Torrent():
 
         if self.on_complete:
             self.on_complete(self, data)
+
+    def get_progress_string(self):
+        num_complete = sum(v is not None for v in self.complete_pieces)
+        num_pieces = len(self.complete_pieces)
+        pct_complete = 100.0 * num_complete / num_pieces
+        return('%s / %s (%02.1f%%) complete'
+               % (num_complete, num_pieces, pct_complete))
+
 
 
 class TorrentTracker():
@@ -169,7 +180,7 @@ class TorrentTracker():
 
     @staticmethod
     def decode_dict_model_peers(peers_dicts):
-        return [{'ip': d[b'ip'],
+        return [{'ip': d[b'ip'].decode('utf-8'),
                  'port': d[b'port'],
                  'peer_id': d.get(b'peer id')}
                 for d in peers_dicts]
