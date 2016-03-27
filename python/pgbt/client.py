@@ -2,9 +2,11 @@ import socket
 import time
 import os
 import logging
+from twisted.internet import reactor
 
 from pgbt.torrent_metainfo import TorrentMetainfo
 from pgbt.torrent import Torrent
+from pgbt.conn import PeerConnectionFactory
 from pgbt.config import CONFIG
 
 log = logging.getLogger(__name__)
@@ -32,6 +34,12 @@ class PgbtClient():
         else:
             self.save_multiple_file(torrent, data)
 
+        self.active_torrents.remove(torrent)
+        self.finished_torrents.append(torrent)
+
+        if not self.active_torrents:
+            reactor.stop()
+
     def save_single_file(self, torrent, data):
         (_, filename) = os.path.split(torrent.metainfo.name)
         filepath = (os.path.join(os.path.expanduser(self.outdir), filename)
@@ -44,14 +52,33 @@ class PgbtClient():
         raise NotImplementedError
 
     def run_torrent(self):
+        torrent = self.active_torrents[0]
+        torrent.start_torrent()
+        log.info('Found %s peers: %s' %
+                 (len(torrent.other_peers), torrent.other_peers))
+
+        peer = [v for v in torrent.other_peers if v.ip == '96.126.104.219'][0]
+        f = PeerConnectionFactory(peer)
+        reactor.connectTCP(peer.ip, peer.port, f)
+        reactor.run()
+
+    def zrun_torrent(self):
         """Download first torrent from first peer in a single thread."""
         # \/ this is a hack \/
         torrent = self.active_torrents[0]
         torrent.start_torrent()
-        peer = torrent.other_peers[0]
+        log.info('Found %s peers: %s' %
+                 (len(torrent.other_peers), torrent.other_peers))
+
+        peer = torrent.other_peers[1]
         peer.start_peer()
 
-        peer.receive_handshake()
+        while not peer.is_started:
+            try:
+                peer.receive_handshake()
+            except socket.timeout:
+                pass
+            time.sleep(1)
 
         def _drain_msgs():
             try:
@@ -61,7 +88,14 @@ class PgbtClient():
                 pass
         _drain_msgs()
         peer.send_message('interested')
-        _drain_msgs()
+
+        while peer.peer_choking:
+            time.sleep(1)
+            log.info('Waiting to unchoke')
+            _drain_msgs()
+
+        log.info('Peer has %s of %s pieces' %
+                 (sum(peer.peer_pieces), len(peer.peer_pieces)))
 
         def _request_all_pieces():
             num_pieces = len(torrent.metainfo.info['pieces'])

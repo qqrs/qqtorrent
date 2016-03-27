@@ -23,10 +23,16 @@ class Torrent():
         self.active_peers = []
         self.other_peers = []
         self.tracker = None
-
-        self.piece_blocks = [[] for _ in self.metainfo.info['pieces']]
-        self.complete_pieces = [None for _ in self.metainfo.info['pieces']]
         self.is_complete = False
+
+        # Received blocks for incomplete pieces.
+        self.piece_blocks = [[] for _ in self.metainfo.info['pieces']]
+
+        # Peers from which each piece has been requested.
+        self.piece_requests = [[] for _ in self.metainfo.info['pieces']]
+
+        # Completed pieces.
+        self.complete_pieces = [None for _ in self.metainfo.info['pieces']]
 
     def start_torrent(self):
         self.tracker = TorrentTracker(self, self.metainfo.announce)
@@ -41,14 +47,14 @@ class Torrent():
         self.other_peers.append(peer)
         return peer
 
-    def find_peer(self, ip, port):
+    def find_peer(self, ip, port, **kwargs):
         for peer_list in (self.active_peers, self.other_peers):
             for v in peer_list:
                 if v.ip == ip and v.port == port:
                     return v
         return None
 
-    def handle_block(self, piece_index, begin, block):
+    def handle_block(self, peer, piece_index, begin, block):
         for v in self.piece_blocks[piece_index]:
             if v[0] == begin:       # TODO: check for overlap of block range
                 # already got this piece
@@ -58,9 +64,11 @@ class Torrent():
         expected_length = self.metainfo.get_piece_length(piece_index)
         piece_length = sum(len(v[1]) for v in self.piece_blocks[piece_index])
         if piece_length == expected_length:
-            self.handle_completed_piece(piece_index)
+            self.handle_completed_piece(peer, piece_index)
+        else:
+            peer.request_next_block(piece_index, begin)
 
-    def handle_completed_piece(self, piece_index):
+    def handle_completed_piece(self, peer, piece_index):
         if self.complete_pieces[piece_index] is not None:
             log.warning('Piece %d already completed' % piece_index)
             return
@@ -77,10 +85,20 @@ class Torrent():
 
         self.complete_pieces[piece_index] = piece
         self.piece_blocks[piece_index] = None
+
+        for p in self.piece_requests[piece_index]:
+            if p.requested_piece == piece_index:
+                p.requested_piece = None
+            if p != peer:
+                # TODO: send cancel
+                pass
+        self.piece_requests[piece_index] = None
         log.debug('handle_completed_piece: %d' % piece_index)
 
         if not any(v is None for v in self.complete_pieces):
             self.handle_completed_torrent()
+        else:
+            peer.run_download()
 
     def handle_completed_torrent(self):
         log.info('%s: handle_completed_torrent' % (self))
@@ -99,11 +117,15 @@ class TorrentTracker():
         self.tracker_id = None
 
     def send_announce_request(self):
-        # TODO: send 'port', 'uploaded', 'downloaded', 'left', 'compact',
-        # 'no_peer_id', 'event' (started/completed/stopped)
+        # TODO: send 'port', 'uploaded', 'downloaded', 'left'
+        # TODO:'compact', 'no_peer_id', 'event' (started/completed/stopped)
         http_resp = requests.get(self.announce, {
             'info_hash': self.torrent.metainfo.info_hash,
-            'peer_id': CONFIG['peer_id']
+            'peer_id': CONFIG['peer_id'],
+            'port': 6881,
+            'uploaded': '0',
+            'downloaded': '0',
+            'left': str(self.torrent.metainfo.info['length'])
         })
         self.handle_announce_response(http_resp)
 
@@ -122,12 +144,13 @@ class TorrentTracker():
     def decode_announce_response(cls, resp):
         d = {}
 
-        if b'failure reason' in d:
-            raise AnnounceFailureError(d[b'failure reason'].decode('utf-8'))
+        if b'failure reason' in resp:
+            raise AnnounceFailureError(resp[b'failure reason'].decode('utf-8'))
 
         d['interval'] = int(resp[b'interval'])
-        d['complete'] = int(resp[b'complete'])
-        d['incomplete'] = int(resp[b'incomplete'])
+        d['complete'] = int(resp[b'complete']) if b'complete' in resp else None
+        d['incomplete'] = (int(resp[b'incomplete'])
+                           if b'incomplete' in resp else None)
 
         try:
             d['tracker_id'] = resp[b'tracker id'].decode('utf-8')
