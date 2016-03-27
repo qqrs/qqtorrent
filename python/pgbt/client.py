@@ -56,10 +56,10 @@ class PgbtClient():
         base_dir = torrent.metainfo.name
         base_dir = (os.path.join(os.path.expanduser(self.outdir), base_dir)
                     if self.outdir else base_dir)
-        for file_dict in torrent.metainfo['files']:
+        for file_dict in torrent.metainfo.info['files']:
             filepath = os.path.join(base_dir, file_dict['path'])
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            file_data = data[begin:file_dict['length']]
+            file_data = data[begin: begin+file_dict['length']]
             with open(filepath, 'wb') as f:
                 f.write(file_data)
             log.info('save_multiple_file: %s' % filepath)
