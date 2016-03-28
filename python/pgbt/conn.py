@@ -3,6 +3,7 @@ from twisted.internet import protocol
 
 log = logging.getLogger(__name__)
 
+# TODO: move all twisted code here
 
 class PeerConnectionProtocol(protocol.Protocol):
     def connectionMade(self):
@@ -30,11 +31,11 @@ class PeerConnectionFactory(protocol.ClientFactory):
         self.peer = peer
 
     def clientConnectionFailed(self, connector, reason):
-        log.warn('%s: clientConnectionFailed: %s' % (self.peer, reason))
+        #log.warn('%s: clientConnectionFailed: %s' % (self.peer, reason))
         self.peer.handle_connection_failed()
 
     def clientConnectionLost(self, connector, reason):
-        log.warn('%s: clientConnectionLost: %s' % (self.peer, reason))
+        #log.warn('%s: clientConnectionLost: %s' % (self.peer, reason))
         self.peer.handle_connection_lost()
 
 
