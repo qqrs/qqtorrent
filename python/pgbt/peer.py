@@ -3,10 +3,9 @@ import socket
 import bitarray
 import logging
 import random
-from twisted.internet import reactor
 
 from pgbt.config import CONFIG
-from pgbt.conn import PeerConnectionFactory
+from pgbt.conn import connect_peer
 
 log = logging.getLogger(__name__)
 
@@ -87,8 +86,7 @@ class TorrentPeer():
         self.conn.write(msg)
 
     def connect(self):
-        f = PeerConnectionFactory(self)
-        reactor.connectTCP(self.ip, self.port, f)
+        connect_peer(self)
 
     def run_download(self):
         if not self.is_started:

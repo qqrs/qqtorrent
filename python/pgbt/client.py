@@ -2,10 +2,10 @@ import socket
 import time
 import os
 import logging
-from twisted.internet import reactor
 
 from pgbt.torrent_metainfo import TorrentMetainfo
 from pgbt.torrent import Torrent
+from pgbt.conn import start_event_loop, stop_event_loop
 from pgbt.config import CONFIG
 
 log = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class PgbtClient():
         self.finished_torrents.append(torrent)
 
         if not self.active_torrents:
-            reactor.stop()
+            stop_event_loop()
 
     def save_single_file(self, torrent, data):
         (_, filename) = os.path.split(torrent.metainfo.name)
@@ -75,7 +75,7 @@ class PgbtClient():
                  #(len(torrent.peers), torrent.peers))
 
         #peer = [v for v in torrent.peers if v.ip == '96.126.104.219'][0]
-        reactor.run()
+        start_event_loop()
 
     def zrun_torrent(self):
         """Download first torrent from first peer in a single thread."""

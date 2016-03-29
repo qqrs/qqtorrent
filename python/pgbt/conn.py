@@ -1,9 +1,8 @@
 import logging
-from twisted.internet import protocol
+from twisted.internet import protocol, reactor
 
 log = logging.getLogger(__name__)
 
-# TODO: move all twisted code here
 
 class PeerConnectionProtocol(protocol.Protocol):
     def connectionMade(self):
@@ -39,7 +38,14 @@ class PeerConnectionFactory(protocol.ClientFactory):
         self.peer.handle_connection_lost()
 
 
-#def main():
-    #f = PeerConnectionFactory()
-    #reactor.connectTCP("localhost", 8000, f)
-    #reactor.run()
+def connect_peer(peer):
+    f = PeerConnectionFactory(peer)
+    reactor.connectTCP(peer.ip, peer.port, f)
+
+
+def start_event_loop():
+    reactor.run()
+
+
+def stop_event_loop():
+    reactor.stop()
