@@ -68,9 +68,9 @@ class PgbtClient():
         if begin != len(data):
             log.warn('begin != len(data)')
 
-    def run_torrent(self):
-        torrent = self.active_torrents[0]
-        torrent.start_torrent()
+    def start_torrents(self):
+        for torrent in self.active_torrents:
+            torrent.start_torrent()
         #log.info('Found %s peers: %s' %
                  #(len(torrent.peers), torrent.peers))
 

@@ -10,6 +10,7 @@ def main(argv=None):
         argv = sys.argv[1:]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('torrent', help='.torrent metainfo file')
+    parser.add_argument('-t', '--torrent2', help='other .torrent metainfo file')
     parser.add_argument('--outdir', type=str, help='output directory')
     parser.add_argument('--hello', default=False, action='store_true')
     parser.add_argument('--verbose', '-v', default=False, action='store_true')
@@ -28,7 +29,9 @@ def main(argv=None):
 
     client = PgbtClient(outdir=args.outdir)
     client.add_torrent(args.torrent)
-    client.run_torrent()
+    if args.torrent2:
+        client.add_torrent(args.torrent2)
+    client.start_torrents()
 
 
 if __name__ == '__main__':
