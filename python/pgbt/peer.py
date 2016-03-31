@@ -5,7 +5,6 @@ import logging
 import random
 
 from pgbt.config import CONFIG
-from pgbt.conn import connect_peer
 
 log = logging.getLogger(__name__)
 
@@ -86,7 +85,7 @@ class TorrentPeer():
         self.conn.write(msg)
 
     def connect(self):
-        connect_peer(self)
+        self.torrent.conn_man.connect_peer(self)
 
     def run_download(self):
         if not self.is_started:

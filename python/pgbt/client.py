@@ -5,7 +5,7 @@ import logging
 
 from pgbt.torrent_metainfo import TorrentMetainfo
 from pgbt.torrent import Torrent
-from pgbt.conn import start_event_loop, stop_event_loop
+from pgbt.conn import ConnectionManager
 from pgbt.config import CONFIG
 
 log = logging.getLogger(__name__)
@@ -16,6 +16,7 @@ class PgbtClient():
         self.active_torrents = []
         self.finished_torrents = []
         self.outdir = outdir
+        self.conn_man = ConnectionManager()
 
     def add_torrent(self, filename):
         with open(filename, 'rb') as f:
@@ -24,7 +25,8 @@ class PgbtClient():
         # TODO: handle errors
         metainfo = TorrentMetainfo(contents)
         torrent = Torrent(
-            metainfo, self.on_completed_torrent, self.on_completed_piece)
+            self.conn_man, metainfo, self.on_completed_torrent,
+            self.on_completed_piece)
         self.active_torrents.append(torrent)
 
     def on_completed_piece(self, torrent):
@@ -41,7 +43,10 @@ class PgbtClient():
         self.finished_torrents.append(torrent)
 
         if not self.active_torrents:
-            stop_event_loop()
+            self.all_torrents_completed()
+
+    def all_torrents_completed(self):
+        self.conn_man.stop_event_loop()
 
     def save_single_file(self, torrent, data):
         (_, filename) = os.path.split(torrent.metainfo.name)
@@ -75,7 +80,7 @@ class PgbtClient():
                  #(len(torrent.peers), torrent.peers))
 
         #peer = [v for v in torrent.peers if v.ip == '96.126.104.219'][0]
-        start_event_loop()
+        self.conn_man.start_event_loop()
 
     def zrun_torrent(self):
         """Download first torrent from first peer in a single thread."""

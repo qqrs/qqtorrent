@@ -3,6 +3,23 @@ from twisted.internet import protocol, reactor
 
 log = logging.getLogger(__name__)
 
+concurrency_mode = 'twisted'
+#concurrency_mode = 'select'
+#concurrency_mode = 'threads'
+
+
+#class ConnectionManager():
+    #def connect_peer(peer):
+        #raise NotImplementedError
+
+    #def start_event_loop():
+        #raise NotImplementedError
+
+    #def stop_event_loop():
+        #raise NotImplementedError
+
+# =============================================================================
+
 
 class PeerConnectionProtocol(protocol.Protocol):
     def connectionMade(self):
@@ -38,14 +55,26 @@ class PeerConnectionFactory(protocol.ClientFactory):
         self.peer.handle_connection_lost()
 
 
-def connect_peer(peer):
-    f = PeerConnectionFactory(peer)
-    reactor.connectTCP(peer.ip, peer.port, f)
+class ConnectionManagerTwisted():
+    @staticmethod
+    def connect_peer(peer):
+        f = PeerConnectionFactory(peer)
+        reactor.connectTCP(peer.ip, peer.port, f)
 
+    @staticmethod
+    def start_event_loop():
+        reactor.run()
 
-def start_event_loop():
-    reactor.run()
+    @staticmethod
+    def stop_event_loop():
+        reactor.stop()
 
+# =============================================================================
 
-def stop_event_loop():
-    reactor.stop()
+ConnectionManager = ConnectionManagerTwisted
+if concurrency_mode == 'twisted':
+    ConnectionManager = ConnectionManagerTwisted
+elif concurrency_mode == 'select':
+    ConnectionManager = ConnectionManagerSelect
+elif concurrency_mode == 'threads':
+    ConnectionManager = ConnectionManagerThreaded

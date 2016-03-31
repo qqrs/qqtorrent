@@ -12,13 +12,15 @@ log = logging.getLogger(__name__)
 
 class Torrent():
     """An active torrent upload/download."""
-    def __init__(self, metainfo, on_complete=None, on_completed_piece=None):
+    def __init__(self, conn_man, metainfo, on_complete=None,
+                 on_completed_piece=None):
         """
         Args:
             metainfo (TorrentMetainfo): decoded torrent file
             autostart (bool): immediately connect to tracker and start peers
         """
         self.metainfo = metainfo
+        self.conn_man = conn_man
         self.active_peers = []
         self.peers = []
         self.tracker = None
