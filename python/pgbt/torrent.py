@@ -57,6 +57,7 @@ class Torrent():
         for peer_list in (self.active_peers, self.peers):
             for v in peer_list:
                 if v.ip == ip and v.port == port:
+                    print('found peer: %s %s' % (ip, port))
                     return v
         return None
 
