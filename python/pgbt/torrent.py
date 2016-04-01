@@ -57,7 +57,6 @@ class Torrent():
         for peer_list in (self.active_peers, self.peers):
             for v in peer_list:
                 if v.ip == ip and v.port == port:
-                    print('found peer: %s %s' % (ip, port))
                     return v
         return None
 
@@ -127,6 +126,7 @@ class Torrent():
 
     def handle_peer_stopped(self, peer):
         """A peer failed or completed so start a new one."""
+        # TODO: run this on a timer instead of a connection failed callback
         # TODO: better active count
         if self.is_complete:
             return
@@ -134,8 +134,11 @@ class Torrent():
                          if p.is_started and not p.conn_failed)
         if num_active >= CONFIG['max_peers']:
             return
-        for p in self.peers:
-            if p.is_started or p.conn_failed:
+        # HACK: skip initial peers in case conn failed callback runs before all
+        # initial peers are started
+        for p in self.peers[CONFIG['max_peers']:]:
+        #for p in self.peers:
+            if p.conn or p.is_started or p.conn_failed:
                 continue
             log.info('handle_peer_stopped: starting new peer: %s' % p)
             p.connect()

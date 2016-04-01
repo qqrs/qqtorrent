@@ -84,7 +84,8 @@ class TorrentPeer():
     def write_message(self, msg):
         """Write message data to wire."""
         #self.sock.send(msg)
-        self.conn.write(msg)
+        if self.conn:
+            self.conn.write(msg)
 
     def connect(self):
         self.torrent.conn_man.connect_peer(self)
@@ -216,6 +217,9 @@ class TorrentPeer():
     def parse_message(self, data):
         """Parse a message and return bytes consumed, or raise exception."""
         nbytes = 0      # bytes of data consumed
+
+        if len(data) < 4:
+            return 0
 
         # get length prefix
         length_prefix = struct.unpack('!L', data[:4])[0]

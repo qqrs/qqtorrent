@@ -1,6 +1,7 @@
 import logging
 import selectors
 import socket
+import queue
 from twisted.internet import protocol, reactor
 
 log = logging.getLogger(__name__)
@@ -107,16 +108,21 @@ class PeerConnectionSelect():
         log.debug('PeerConnectionSelect.__init__: %s' % peer)
         self.sel = sel
         self.peer = peer
+        self.write_queue = queue.Queue()
+        self.connect()
+
+    def connect(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(2.0)
         try:
-            self.sock.connect((peer.ip, peer.port))
+            self.sock.connect((self.peer.ip, self.peer.port))
         except OSError:
             self.handle_connection_failed()
             raise PeerConnectionFailed
 
         self.sock.setblocking(False)
-        sel.register(self.sock, selectors.EVENT_READ, self.handle_event_read)
+        self.sel.register(
+            self.sock, selectors.EVENT_READ, self.handle_event)
         self.peer.handle_connection_made(self)
 
     def handle_connection_failed(self):
@@ -125,33 +131,59 @@ class PeerConnectionSelect():
 
     def handle_connection_lost(self):
         #log.debug('PeerConnectionSelect.handle_connection_lost')
-        if self.sock:
-            self.sock.close()
-        self.sock = None
+        self.disconnect()
         self.peer.handle_connection_lost()
 
-    def handle_event_read(self, zsock, zmask):
+    def handle_event(self, sock, mask):
+        assert(sock == self.sock)
+
+        if mask & selectors.EVENT_WRITE:
+            self.handle_event_write(mask)
+        elif mask & selectors.EVENT_READ:
+            self.handle_event_read(mask)
+        else:
+            raise Exception('Unexpected event mask: %s' % mask)
+
+    def handle_event_read(self, mask):
         #log.debug('PeerConnectionSelect.handle_event_read')
-        assert(zsock == self.sock)
+        assert(mask == selectors.EVENT_READ)
         try:
-            data = self.sock.recv(1024)
-        except ConnectionError as e:
-            log.error('ConnectionError')
-            log.error(e)
+            data = self.sock.recv(4096)
+        except ConnectionError:
             self.handle_connection_lost()
             return
 
-        #if not data:
-            #log.error('connection lost: data == b''')
-            #self.handle_connection_lost()
-            #return
+        if not data:
+            self.handle_connection_lost()
+            return
 
         self.peer.handle_data_received(data)
 
+    def handle_event_write(self, mask):
+        #log.debug('PeerConnectionSelect.handle_event_write')
+        assert(mask == selectors.EVENT_WRITE)
+
+        try:
+            data = self.write_queue.get_nowait()
+        except queue.Empty:
+            # Disable write events.
+            self.sel.modify(self.sock, selectors.EVENT_READ, self.handle_event)
+            return
+
+        try:
+            self.sock.send(data)
+        except BrokenPipeError:
+            self.handle_connection_lost()
+            return
+
+
     def write(self, data):
         #log.debug('PeerConnectionSelect.write: %s' % data)
-        # TODO: make this non-blocking
-        self.sock.send(data)
+        self.write_queue.put(data)
+        # Enable write events.
+        self.sel.modify(
+            self.sock, selectors.EVENT_READ|selectors.EVENT_WRITE,
+            self.handle_event)
 
     def disconnect(self):
         if self.sock:
