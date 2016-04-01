@@ -2,13 +2,15 @@ import logging
 import selectors
 import socket
 import queue
+import time
+from threading import Thread
 from twisted.internet import protocol, reactor
 
 log = logging.getLogger(__name__)
 
 #concurrency_mode = 'twisted'
-concurrency_mode = 'select'
-#concurrency_mode = 'threads'
+#concurrency_mode = 'select'
+concurrency_mode = 'threads'
 
 
 #class ConnectionManager():
@@ -113,7 +115,7 @@ class PeerConnectionSelect():
 
     def connect(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(2.0)
+        self.sock.settimeout(3.0)
         try:
             self.sock.connect((self.peer.ip, self.peer.port))
         except OSError:
@@ -201,16 +203,128 @@ class PeerConnectionFailed(Exception):
 
 class ConnectionManagerThreaded():
     def __init__(self):
-        pass
+        self.conns = []
 
     def connect_peer(self, peer):
-        pass
+        try:
+            conn = PeerConnectionThreaded(peer)
+        except PeerConnectionFailed:
+            return
+
+        self.conns.append(conn)
 
     def start_event_loop(self):
-        pass
+        while True:
+            time.sleep(0)
+            for conn in self.conns:
+                if not conn.receive_queue.empty():
+                    try:
+                        data = conn.receive_queue.get_nowait()
+                    except queue.Empty:
+                        continue
+                    else:
+                        conn.handle_data_received(data)
 
     def stop_event_loop(self):
         pass
+
+
+class PeerConnectionThreaded():
+    def __init__(self, peer):
+        self.peer = peer
+        self.receive_queue = queue.Queue()
+        self.write_queue = queue.Queue()
+        self.connect()
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(3.0)
+        try:
+            self.sock.connect((self.peer.ip, self.peer.port))
+        except OSError:
+            self.handle_connection_failed()
+            raise PeerConnectionFailed
+
+        self.sock.setblocking(False)
+        self.peer.handle_connection_made(self)
+
+        self.thread = Thread(target=self.thread_poll_socket)
+        self.thread.start()
+        #self.thread = PeerConnectionThreadedThread(
+            #self.receive_queue, self.write_queue)
+        #self.thread.start()
+
+    def thread_poll_socket(self):
+        while self.sock:
+            time.sleep(0)
+            self.thread_send()
+            self.thread_receive()
+
+        self.thread.join()
+
+    def thread_send(self):
+        while True:
+            try:
+                data = self.write_queue.get_nowait()
+
+                try:
+                    self.sock.send(data)
+                except BrokenPipeError:
+                    self.thread_handle_connection_lost()
+                    return
+            except queue.Empty:
+                return
+
+    def thread_receive(self):
+        try:
+            data = self.sock.recv(4096)
+        except BlockingIOError:
+            return
+        except ConnectionError:
+            self.thread_handle_connection_lost()
+            return
+
+        if not data:
+            self.thread_handle_connection_lost()
+            return
+
+        #self.peer.handle_data_received(data)
+        self.receive_queue.put(data)
+
+    def thread_handle_connection_lost(self):
+        pass
+
+    def handle_connection_failed(self):
+        #self.peer.handle_connection_failed()
+        pass
+
+    def handle_data_received(self, data):
+        self.peer.handle_data_received(data)
+
+    def handle_connection_lost(self):
+        pass
+        #self.disconnect()
+        #self.peer.handle_connection_lost()
+
+    def write(self, data):
+        self.write_queue.put(data)
+
+    def disconnect(self):
+        # TODO: stop thread
+        if self.sock:
+            self.sock.close()
+        self.sock = None
+
+
+#class PeerConnectionThreadedThread(Thread):
+    #def __init__(self, receive_queue, write_queue):
+        #self.receive_queue = receive_queue
+        #self.write_queue = write_queue
+        #Thread.__init__(self)
+
+    #def run(self):
+        #print('thread run')
+
 
 # =============================================================================
 
