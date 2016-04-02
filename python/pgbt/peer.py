@@ -40,17 +40,17 @@ class TorrentPeer():
 
     def handle_connection_made(self, conn):
         self.conn = conn
-        log.debug('%s: handle_connection_made' % self)
+        log.info('%s: handle_connection_made' % self)
         self.run_download()
 
     def handle_connection_failed(self):
-        log.debug('connection failed: %s' % self)
+        log.info('%s: handle_connection_failed' % self)
         self.conn_failed = True
         self.conn = None
         self.torrent.handle_peer_stopped(self)
 
     def handle_connection_lost(self):
-        log.debug('connection lost: %s' % self)
+        log.info('%s: handle_connection_lost' % self)
         self.conn_failed = True
         self.conn = None
         self.torrent.handle_peer_stopped(self)
