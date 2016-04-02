@@ -218,24 +218,7 @@ class ConnectionManagerThreaded():
             for conn in self.conns:
                 if not conn.thread.is_alive():
                     continue
-
-                if not conn.receive_queue.empty():
-                    try:
-                        data = conn.receive_queue.get_nowait()
-                    except queue.Empty:
-                        continue
-                    else:
-                        conn.handle_data_received(data)
-
-                if conn.connection_succeeded.is_set():
-                    conn.connection_succeeded.clear()
-                    conn.handle_connection_succeded()
-                if conn.connection_failed.is_set():
-                    conn.connection_failed.clear()
-                    conn.handle_connection_failed()
-                if conn.connection_lost.is_set():
-                    conn.connection_lost.clear()
-                    conn.handle_connection_lost()
+                conn.check_events()
 
     def stop_event_loop(self):
         self.loop_active = False
@@ -256,18 +239,68 @@ class PeerConnectionThreaded():
         self.connection_failed = threading.Event()
         self.connection_lost = threading.Event()
 
-        self.thread = threading.Thread(target=self.thread_run)
+        self.thread = PeerConnectionThreadedThread(self)
         self.thread.start()
         self.connect()
 
-        #self.thread = PeerConnectionThreadedThread(
-            #self.receive_queue, self.write_queue)
-        #self.thread.start()
+    def check_events(self):
+        """Check receive queue and event flags from thread and take actions."""
+        if not self.receive_queue.empty():
+            try:
+                data = self.receive_queue.get_nowait()
+            except queue.Empty:
+                pass
+            else:
+                self.handle_data_received(data)
+
+        if self.connection_succeeded.is_set():
+            self.connection_succeeded.clear()
+            self.handle_connection_succeded()
+        if self.connection_failed.is_set():
+            self.connection_failed.clear()
+            self.handle_connection_failed()
+        if self.connection_lost.is_set():
+            self.connection_lost.clear()
+            self.handle_connection_lost()
+
+    def handle_connection_succeded(self):
+        self.peer.handle_connection_made(self)
+
+    def handle_connection_failed(self):
+        self.peer.handle_connection_failed()
+
+    def handle_connection_lost(self):
+        self.peer.handle_connection_lost()
+
+    def handle_data_received(self, data):
+        self.peer.handle_data_received(data)
 
     def connect(self):
         self.connect_event.set()
 
-    def thread_run(self):
+    def write(self, data):
+        self.write_queue.put(data)
+
+    def disconnect(self):
+        self.disconnect_event.set()
+
+
+class PeerConnectionThreadedThread(threading.Thread):
+    def __init__(self, conn):
+        self.ip = conn.peer.ip
+        self.port = conn.peer.port
+
+        self.receive_queue = conn.receive_queue
+        self.write_queue = conn.write_queue
+        self.connect_event = conn.connect_event
+        self.disconnect_event = conn.disconnect_event
+        self.connection_succeeded = conn.connection_succeeded
+        self.connection_failed = conn.connection_failed
+        self.connection_lost = conn.connection_lost
+
+        threading.Thread.__init__(self)
+
+    def run(self):
         while not self.connect_event.is_set():
             time.sleep(0)
         try:
@@ -290,7 +323,7 @@ class PeerConnectionThreaded():
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(3.0)
         try:
-            self.sock.connect((self.peer.ip, self.peer.port))
+            self.sock.connect((self.ip, self.port))
         except OSError:
             raise PeerConnectionFailedError
 
@@ -328,34 +361,6 @@ class PeerConnectionThreaded():
     def thread_handle_connection_lost(self):
         self.connection_lost.set()
         self.disconnect_event.set()
-
-    def handle_connection_succeded(self):
-        self.peer.handle_connection_made(self)
-
-    def handle_connection_failed(self):
-        self.peer.handle_connection_failed()
-
-    def handle_data_received(self, data):
-        self.peer.handle_data_received(data)
-
-    def handle_connection_lost(self):
-        self.peer.handle_connection_lost()
-
-    def write(self, data):
-        self.write_queue.put(data)
-
-    def disconnect(self):
-        self.disconnect_event.set()
-
-
-#class PeerConnectionThreadedThread(Thread):
-    #def __init__(self, receive_queue, write_queue):
-        #self.receive_queue = receive_queue
-        #self.write_queue = write_queue
-        #Thread.__init__(self)
-
-    #def run(self):
-        #print('thread run')
 
 
 # =============================================================================
