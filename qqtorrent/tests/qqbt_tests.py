@@ -1,6 +1,6 @@
 import sys
 from nose.tools import *
-import pgbt.cli
+import qqbt.cli
 
 
 def setup():

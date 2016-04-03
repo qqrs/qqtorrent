@@ -4,7 +4,7 @@ import bitarray
 import logging
 import random
 
-from pgbt.config import CONFIG
+from qqbt.config import CONFIG
 
 log = logging.getLogger(__name__)
 

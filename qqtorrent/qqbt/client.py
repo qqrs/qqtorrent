@@ -3,15 +3,15 @@ import time
 import os
 import logging
 
-from pgbt.torrent_metainfo import TorrentMetainfo
-from pgbt.torrent import Torrent
-from pgbt.conn import ConnectionManager
-from pgbt.config import CONFIG
+from qqbt.torrent_metainfo import TorrentMetainfo
+from qqbt.torrent import Torrent
+from qqbt.conn import ConnectionManager
+from qqbt.config import CONFIG
 
 log = logging.getLogger(__name__)
 
 
-class PgbtClient():
+class QqbtClient():
     def __init__(self, outdir=None):
         self.active_torrents = []
         self.finished_torrents = []

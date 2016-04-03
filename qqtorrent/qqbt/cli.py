@@ -2,7 +2,7 @@ import sys
 import argparse
 import logging
 
-from pgbt.client import PgbtClient
+from qqbt.client import QqbtClient
 
 
 def main(argv=None):
@@ -27,7 +27,7 @@ def main(argv=None):
     else:
         logging.basicConfig(level=logging.INFO)
 
-    client = PgbtClient(outdir=args.outdir)
+    client = QqbtClient(outdir=args.outdir)
     client.add_torrent(args.torrent)
     if args.torrent2:
         client.add_torrent(args.torrent2)

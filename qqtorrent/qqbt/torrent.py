@@ -4,8 +4,8 @@ import bencodepy
 import hashlib
 import logging
 
-from pgbt.config import CONFIG
-from pgbt.peer import TorrentPeer
+from qqbt.config import CONFIG
+from qqbt.peer import TorrentPeer
 
 log = logging.getLogger(__name__)
 

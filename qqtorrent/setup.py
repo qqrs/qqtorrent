@@ -11,9 +11,9 @@ config = {
     'author_email': '',
     'version': '0.1',
     'install_requires': ['nose'],
-    'packages': ['pgbt'],
+    'packages': ['qqbt'],
     'scripts': [],
-    'name': 'pgbt'
+    'name': 'qqbt'
 }
 
 setup(**config)

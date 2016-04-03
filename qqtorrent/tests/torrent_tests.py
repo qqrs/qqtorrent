@@ -1,6 +1,6 @@
 from nose.tools import *
 
-from pgbt.torrent import Torrent, TorrentTracker, AnnounceDecodeError
+from qqbt.torrent import Torrent, TorrentTracker, AnnounceDecodeError
 
 
 def setup():
