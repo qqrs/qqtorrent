@@ -1,5 +1,4 @@
 import struct
-import socket
 import bitarray
 import logging
 import random
@@ -10,12 +9,12 @@ log = logging.getLogger(__name__)
 
 
 class TorrentPeer():
+    """A peer available for download/upload of a torrent."""
     def __init__(self, torrent, ip, port, peer_id=None):
         self.torrent = torrent
         self.peer_id = peer_id
         self.ip = ip
         self.port = port
-        self.sock = None
         self.conn = None
         self.recv_buffer = b''
 
@@ -30,13 +29,57 @@ class TorrentPeer():
                             len(self.torrent.metainfo.info['pieces']))]
         self.requested_piece = None
 
-    #def __del__(self):
-        #if self.sock:
-            #self.sock.close()
-
     def __repr__(self):
         return ('TorrentPeer(ip={ip}, port={port})'
                 .format(**self.__dict__))
+
+    def connect(self):
+        self.torrent.conn_man.connect_peer(self)
+
+    def run_download(self):
+        """Take next action to begin or continue downloading from peer."""
+        if not self.is_started:
+            self.send_handshake()
+        elif self.peer_choking:
+            self.send_message('interested')
+        elif self.requested_piece is not None:
+            # Wait for piece to finish downloading.
+            pass
+        else:
+            # Request next piece.
+            try:
+                piece = self._choose_next_piece()
+            except PeerNoUnrequestedPiecesError:
+                self.conn.disconnect()
+                self.torrent.handle_peer_stopped(self)
+                return
+
+            self.requested_piece = piece
+            self.torrent.piece_requests[piece].append(self)
+            self.request_next_block(piece, None)
+
+    def _choose_next_piece(self):
+        """Return piece index of best piece to fetch from peer next."""
+        num_pieces = len(self.torrent.metainfo.info['pieces'])
+        # Get first piece that is not complete, not already request from any
+        # peer, and is available from this peer.
+        for i in range(num_pieces):
+            if (not self.torrent.complete_pieces[i]
+                    and not self.torrent.piece_requests[i]
+                    and self.peer_pieces[i]):
+                return i
+
+        # Engdgame. Get a piece that is not complete and is available from this
+        # peer, even if already requested from another peer.
+        candidates = [i for i in range(num_pieces)
+                      if not self.torrent.complete_pieces[i]
+                      and self.peer_pieces[i]]
+        if not candidates:
+            # Raise exception so we can disconnect.
+            raise PeerNoUnrequestedPiecesError
+        return random.choice(candidates)
+
+    # =====
 
     def handle_connection_made(self, conn):
         self.conn = conn
@@ -75,69 +118,22 @@ class TorrentPeer():
             self.conn.disconnect()
         self.requested_piece = None
 
-    def on_handshake_ok(self):
+    def handle_handshake_ok(self):
         self.run_download()
 
-    def on_unchoke(self):
+    def handle_unchoke(self):
         self.run_download()
+
+    def handle_keepalive(self):
+        # TODO
+        pass
+
+    # =====
 
     def write_message(self, msg):
         """Write message data to wire."""
-        #self.sock.send(msg)
         if self.conn:
             self.conn.write(msg)
-
-    def connect(self):
-        self.torrent.conn_man.connect_peer(self)
-
-    def run_download(self):
-        if not self.is_started:
-            self.send_handshake()
-        elif self.peer_choking:
-            self.send_message('interested')
-        elif self.requested_piece is not None:
-            # Wait for piece to finish downloading.
-            pass
-        else:
-            try:
-                piece = self.choose_next_piece()
-            except PeerNoUnrequestedPiecesError:
-                self.conn.disconnect()
-                self.torrent.handle_peer_stopped(self)
-                return
-
-            self.requested_piece = piece
-            self.torrent.piece_requests[piece].append(self)
-            self.request_next_block(piece, None)
-
-    def choose_next_piece(self):
-        """Return piece index of best piece to fetch from peer next."""
-        num_pieces = len(self.torrent.metainfo.info['pieces'])
-        # Get first piece that is not complete, not already request from any
-        # peer, and is available from this peer.
-        for i in range(num_pieces):
-            if (not self.torrent.complete_pieces[i]
-                    and not self.torrent.piece_requests[i]
-                    and self.peer_pieces[i]):
-                return i
-
-        # Engdgame. Get a piece that is not complete and is available from this
-        # peer, even if already requested from another peer.
-        candidates = [i for i in range(num_pieces)
-                        if not self.torrent.complete_pieces[i]
-                        and self.peer_pieces[i]]
-        if not candidates:
-            # Raise exception so we can disconnect.
-            raise PeerNoUnrequestedPiecesError
-        return random.choice(candidates)
-
-
-    #def start_peer(self):
-        #log.info('%s: start_peer', self)
-        #self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #self.sock.settimeout(10)
-        #self.sock.connect((self.ip, self.port))
-        #self.send_handshake()
 
     def send_handshake(self):
         log.debug('%s: send_handshake' % self)
@@ -166,6 +162,8 @@ class TorrentPeer():
         self.send_message(
             'request', index=piece_index, begin=begin, length=block_length)
 
+    # =====
+
     def parse_handshake(self, data):
         """Parse a handshake and return bytes consumed, or raise exception."""
         # TODO: check for incomplete message
@@ -176,43 +174,8 @@ class TorrentPeer():
             raise PeerProtocolError('Protocol not recognized')
         self.is_started = True
         log.debug('%s: received_handshake' % self)
-        self.on_handshake_ok()
+        self.handle_handshake_ok()
         return(1 + len(handshake_data))
-
-    #def receive_handshake(self):
-        ## TODO: don't call sock.recv here
-        #pstrlen = int(self.sock.recv(1)[0])
-        #data = self.sock.recv(49 - 1 + pstrlen)
-        #handshake = self.decode_handshake(pstrlen, data)
-        #if handshake['pstr'] != 'BitTorrent protocol':
-            #raise PeerProtocolError('Protocol not recognized')
-        #self.is_started = True
-        #self.sock.settimeout(0.1)
-        #log.debug('%s: received_handshake' % self)
-
-    #def receive_message(self):
-        ## get length prefix
-        #data_len = 4
-        #data = self.sock.recv(data_len)
-        #while len(data) < data_len:
-            #data += self.sock.recv(data_len - len(data))
-
-        ## unpack length prefix
-        #length_prefix = struct.unpack('!L', data)[0]
-        #if length_prefix == 0:
-            ## TODO: handle keep-alive
-            #log.debug('%s: receive_message: keep-alive' % self)
-            #return
-
-        ## get data
-        #data = self.sock.recv(length_prefix)
-        #while len(data) < length_prefix:
-            #data += self.sock.recv(length_prefix - len(data))
-            ##raise PeerProtocolError('Incomplete message received')
-
-        ## decode data and handle message
-        #msg_dict = self.decode_message(data)
-        #self.handle_message(msg_dict)
 
     def parse_message(self, data):
         """Parse a message and return bytes consumed, or raise exception."""
@@ -240,11 +203,8 @@ class TorrentPeer():
         self.handle_message(msg_dict)
         return nbytes
 
-    def handle_keepalive(self):
-        # TODO
-        pass
-
     def handle_message(self, msg_dict):
+        """Perform actions in response to an incoming peer message."""
         msg_id = msg_dict['msg_id']
         payload = msg_dict['payload']
         msg_types = ['choke', 'unchoke', 'interested', 'not_interested',
@@ -263,7 +223,7 @@ class TorrentPeer():
         elif msg_id == 1:
             assert(msg_type == 'unchoke')
             self.peer_choking = False
-            self.on_unchoke()
+            self.handle_unchoke()
         elif msg_id == 2:
             assert(msg_type == 'interested')
             self.peer_interested = True
@@ -280,7 +240,7 @@ class TorrentPeer():
             ba = bitarray.bitarray(endian='big')
             ba.frombytes(bitfield)
             num_pieces = len(self.torrent.metainfo.info['pieces'])
-            # Bitfield only comes once as first msg so it can replace list.
+            # Bitfield only comes once as first msg.
             self.peer_pieces = ba.tolist()[:num_pieces]
         elif msg_id == 6:
             assert(msg_type == 'request')
@@ -297,6 +257,8 @@ class TorrentPeer():
             raise PeerProtocolMessageTypeError(
                 'Unrecognized message id: %s' % msg_id)
 
+    # =====
+
     @staticmethod
     def build_handshake(info_hash, peer_id):
         """<pstrlen><pstr><reserved><info_hash><peer_id>"""
@@ -308,7 +270,6 @@ class TorrentPeer():
     @staticmethod
     def build_message(msg_type, **params):
         """<length_prefix><msg_id><payload>"""
-
         msg_id = None
         payload = b''
         # TODO: implement all
