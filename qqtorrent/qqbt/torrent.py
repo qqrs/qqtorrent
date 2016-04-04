@@ -9,13 +9,15 @@ log = logging.getLogger(__name__)
 
 
 class Torrent():
-    """An active torrent upload/download."""
-    def __init__(self, conn_man, metainfo, on_complete=None,
+    """A torrent to be downloaded/uploaded."""
+    def __init__(self, conn_man, metainfo, on_completed_torrent=None,
                  on_completed_piece=None):
         """
         Args:
+            conn_man (ConnectionManager): manager for peer connections
             metainfo (TorrentMetainfo): decoded torrent file
-            autostart (bool): immediately connect to tracker and start peers
+            on_completed_torrent (function): torrent download callback
+            on_completed_piece (function): torrent piece download callback
         """
         self.metainfo = metainfo
         self.conn_man = conn_man
@@ -24,7 +26,7 @@ class Torrent():
         self.tracker = None
         self.is_complete = False
 
-        self.on_complete = on_complete
+        self.on_completed_torrent = on_completed_torrent
         self.on_completed_piece = on_completed_piece
 
         # Received blocks for incomplete pieces.
@@ -119,8 +121,8 @@ class Torrent():
         for p in self.peers:
             p.handle_torrent_completed()
 
-        if self.on_complete:
-            self.on_complete(self, data)
+        if self.on_completed_torrent:
+            self.on_completed_torrent(self, data)
 
     def handle_peer_stopped(self, peer):
         """A peer failed or completed so start a new one."""

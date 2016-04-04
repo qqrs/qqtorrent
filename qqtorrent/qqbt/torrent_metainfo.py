@@ -4,7 +4,6 @@ import hashlib
 from pprint import pformat
 import bencodepy
 import voluptuous as vol
-#from schema import Schema, And, Use, Optional
 
 
 class TorrentMetainfo():
@@ -23,7 +22,7 @@ class TorrentMetainfo():
             # TODO: better msg
             raise TorrentDecodeError from e
 
-        # TODO: validate shape using voluptuous or schema
+        # TODO: validate shape using voluptuous or schema libraries
 
         # 'encoding' field defines character encoding for 'pieces' field.
         encoding = content.get(b'encoding')
