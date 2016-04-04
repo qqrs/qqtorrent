@@ -1,6 +1,7 @@
 from nose.tools import *
 
-from qqbt.torrent import Torrent, TorrentTracker, AnnounceDecodeError
+from qqbt.torrent import Torrent
+from qqbt.tracker import TorrentTracker, AnnounceDecodeError
 
 
 def setup():
@@ -13,9 +14,15 @@ def teardown():
 
 # TODO: integration tests
 
-
 def test_torrent_add_peer():
-    t = Torrent(None)
+    class MetainfoMock():
+        def __init__(self):
+            self.info = {
+                'pieces': []
+            }
+    metainfo = MetainfoMock()
+
+    t = Torrent(None, metainfo)
     pd1 = {'ip': '1.1.1.1', 'port': 1}
     pd2 = {'ip': '1.1.1.2', 'port': 1}
 
@@ -27,7 +34,7 @@ def test_torrent_add_peer():
 
     p2 = t.add_peer(pd2)
     assert_is_not_none(p2)
-    assert(len(t.other_peers) == 2)
+    assert(len(t.peers) == 2)
 
 
 def test_torrent_tracker_decode_binary_model_peers():
