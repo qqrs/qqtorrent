@@ -1,3 +1,11 @@
+"""An event loop for managing concurrent peer network connections.
+
+The peer networking functionality has three entirely entirely implementations:
+    1. using a custom event loop with select/kqueue/epoll
+    2. using Twisted, which is a library that provides everything in (1)
+    3. using threads, with a separate thread for each connection to handle the
+       blocking I/O, and the event loop reading back results through queues
+"""
 import logging
 import selectors
 import socket
@@ -8,71 +16,28 @@ from twisted.internet import protocol, reactor
 
 log = logging.getLogger(__name__)
 
+concurrency_mode = 'select'
 #concurrency_mode = 'twisted'
-#concurrency_mode = 'select'
-concurrency_mode = 'threads'
+#concurrency_mode = 'threads'
 
 
-#class ConnectionManager():
-    #def connect_peer(peer):
-        #raise NotImplementedError
+class ConnectionManagerBase():
+    def connect_peer(peer):
+        raise NotImplementedError
 
-    #def start_event_loop():
-        #raise NotImplementedError
+    def start_event_loop():
+        raise NotImplementedError
 
-    #def stop_event_loop():
-        #raise NotImplementedError
-
-# =============================================================================
+    def stop_event_loop():
+        raise NotImplementedError
 
 
-class PeerConnectionProtocol(protocol.Protocol):
-    def connectionMade(self):
-        #log.debug('%s: connectionMade' % self.factory.peer)
-        self.factory.peer.handle_connection_made(self)
-
-    def dataReceived(self, data):
-        #log.debug('%s: dataReceived' % self.factory.peer)
-        self.factory.peer.handle_data_received(data)
-
-    def connectionLost(self, reason):
-        pass
-
+class PeerConnectionBase():
     def write(self, data):
-        self.transport.write(data)
+        raise NotImplementedError
 
     def disconnect(self):
-        self.transport.loseConnection()
-
-
-class PeerConnectionFactory(protocol.ClientFactory):
-    protocol = PeerConnectionProtocol
-
-    def __init__(self, peer):
-        self.peer = peer
-
-    def clientConnectionFailed(self, connector, reason):
-        #log.warn('%s: clientConnectionFailed: %s' % (self.peer, reason))
-        self.peer.handle_connection_failed()
-
-    def clientConnectionLost(self, connector, reason):
-        #log.warn('%s: clientConnectionLost: %s' % (self.peer, reason))
-        self.peer.handle_connection_lost()
-
-
-class ConnectionManagerTwisted():
-    @staticmethod
-    def connect_peer(peer):
-        f = PeerConnectionFactory(peer)
-        reactor.connectTCP(peer.ip, peer.port, f)
-
-    @staticmethod
-    def start_event_loop():
-        reactor.run()
-
-    @staticmethod
-    def stop_event_loop():
-        reactor.stop()
+        raise NotImplementedError
 
 # =============================================================================
 
@@ -197,6 +162,57 @@ class PeerConnectionSelect():
 class PeerConnectionFailedError(Exception):
     pass
 
+# =============================================================================
+
+
+class PeerConnectionProtocol(protocol.Protocol):
+    def connectionMade(self):
+        #log.debug('%s: connectionMade' % self.factory.peer)
+        self.factory.peer.handle_connection_made(self)
+
+    def dataReceived(self, data):
+        #log.debug('%s: dataReceived' % self.factory.peer)
+        self.factory.peer.handle_data_received(data)
+
+    def connectionLost(self, reason):
+        pass
+
+    def write(self, data):
+        self.transport.write(data)
+
+    def disconnect(self):
+        self.transport.loseConnection()
+
+
+class PeerConnectionFactory(protocol.ClientFactory):
+    protocol = PeerConnectionProtocol
+
+    def __init__(self, peer):
+        self.peer = peer
+
+    def clientConnectionFailed(self, connector, reason):
+        #log.warn('%s: clientConnectionFailed: %s' % (self.peer, reason))
+        self.peer.handle_connection_failed()
+
+    def clientConnectionLost(self, connector, reason):
+        #log.warn('%s: clientConnectionLost: %s' % (self.peer, reason))
+        self.peer.handle_connection_lost()
+
+
+class ConnectionManagerTwisted():
+    @staticmethod
+    def connect_peer(peer):
+        f = PeerConnectionFactory(peer)
+        reactor.connectTCP(peer.ip, peer.port, f)
+
+    @staticmethod
+    def start_event_loop():
+        reactor.run()
+
+    @staticmethod
+    def stop_event_loop():
+        reactor.stop()
+
 
 # =============================================================================
 
@@ -209,7 +225,6 @@ class ConnectionManagerThreaded():
     def connect_peer(self, peer):
         conn = PeerConnectionThreaded(peer)
         self.conns.append(conn)
-        # TODO: remove on fail
 
     def start_event_loop(self):
         self.loop_active = True
@@ -365,7 +380,6 @@ class PeerConnectionThreadedThread(threading.Thread):
 
 # =============================================================================
 
-ConnectionManager = ConnectionManagerTwisted
 if concurrency_mode == 'twisted':
     ConnectionManager = ConnectionManagerTwisted
 elif concurrency_mode == 'select':
