@@ -1,3 +1,4 @@
+"""Command-line interface entry point."""
 import sys
 import argparse
 import logging
@@ -10,12 +11,11 @@ def main(argv=None):
         argv = sys.argv[1:]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('torrent', help='.torrent metainfo file')
-    parser.add_argument('-t', '--torrent2', help='other .torrent metainfo file')
+    parser.add_argument('-t', '--torrent2',
+                        help='other .torrent metainfo file')
     parser.add_argument('--outdir', type=str, help='output directory')
     parser.add_argument('--hello', default=False, action='store_true')
     parser.add_argument('--verbose', '-v', default=False, action='store_true')
-    #parser.add_argument('--commit', default=False, action='store_true',
-                        #help='commit the changes')
     args = parser.parse_args(argv)
 
     if (args.hello):
@@ -35,4 +35,4 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()
