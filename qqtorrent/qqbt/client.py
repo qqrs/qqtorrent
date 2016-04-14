@@ -11,9 +11,9 @@ log = logging.getLogger(__name__)
 class QqbtClient():
     """BitTorrent client class.
 
-    Encapsulates all operations needed to start, run, or a complete a torrent.
-    All CLI or GUI entry points interface only with this class. All file
-    operations happen only within this class.
+    Provides an interface to all operations needed to start, run, or a complete
+    a torrent.  All CLI or GUI entry points should interface only with this
+    class. All file operations should happen only within this class.
     """
     def __init__(self, outdir=None):
         self.active_torrents = []
