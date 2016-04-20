@@ -216,6 +216,7 @@ class ConnectionManagerTwisted():
 
 # =============================================================================
 
+# TODO: condition variables
 
 class ConnectionManagerThreaded():
     def __init__(self):
