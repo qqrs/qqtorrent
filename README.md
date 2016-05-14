@@ -1,7 +1,7 @@
 A command-line Python BitTorrent client supporting concurrent peer connections and multiple simultaneous torrent downloads.
 
 Since the project was mainly an exercise to explore concurrent networking concepts, it includes three entirely separate implementations for managing the peer network connections:  
-1. using a custom event loop with select/kqueue/epoll  
+1. using a custom event loop with select/kqueue/epoll (via the Python selectors module)  
 2. using Twisted, which is a library that provides everything in (1)  
 3. using threads, with a separate thread for each connection to handle the
     blocking I/O, and the event loop reading back results through queues  

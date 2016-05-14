@@ -1,7 +1,7 @@
 """An event loop for managing concurrent peer network connections.
 
 The peer networking functionality has three entirely entirely separate implementations:
-    1. using a custom event loop with select/kqueue/epoll
+    1. using a custom event loop with select/kqueue/epoll (via the selectors module)
     2. using Twisted, which is a library that provides everything in (1)
     3. using threads, with a separate thread for each connection to handle the
        blocking I/O, and the event loop reading back results through queues
