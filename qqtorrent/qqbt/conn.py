@@ -216,8 +216,6 @@ class ConnectionManagerTwisted():
 
 # =============================================================================
 
-# TODO: condition variables
-
 class ConnectionManagerThreaded():
     def __init__(self):
         self.conns = []
@@ -317,8 +315,7 @@ class PeerConnectionThreadedThread(threading.Thread):
         threading.Thread.__init__(self)
 
     def run(self):
-        while not self.connect_event.is_set():
-            time.sleep(0)
+        self.connect_event.wait()
         try:
             self.thread_connect()
         except PeerConnectionFailedError:
