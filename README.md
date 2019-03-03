@@ -6,7 +6,7 @@ Since the project was mainly an exercise to explore concurrent networking concep
 3. using threads, with a separate thread for each connection to handle the
     blocking I/O, and the event loop reading back results through queues  
 
-If you are thinking about writing a BitTorrent client yourself, see my blog post: TODO
+If you are thinking about writing a BitTorrent client yourself, see my blog post: http://blog.qqrs.us/blog/2016/05/22/writing-a-bittorrent-client/
 
 ## Overview
 
